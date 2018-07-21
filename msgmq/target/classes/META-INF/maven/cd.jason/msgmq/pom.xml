@@ -1,0 +1,69 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>cd.jason</groupId>
+  <artifactId>msgmq</artifactId>
+  <version>1.0.0</version>
+  <packaging>jar</packaging>
+
+  <name>msgmq</name>
+  <url>http://maven.apache.org</url>
+
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+  </properties>
+
+  <dependencies>
+
+     <dependency>
+      <groupId>org.zeromq</groupId>
+      <artifactId>jeromq</artifactId>
+      <version>0.4.3</version>
+    </dependency>
+    
+    <dependency>
+    <groupId>org.msgpack</groupId>
+    <artifactId>msgpack</artifactId>
+    <version>0.6.12</version>
+  </dependency>
+  <dependency>
+    <groupId>com.alibaba</groupId>
+    <artifactId>fastjson</artifactId>
+    <version>1.2.47</version>
+</dependency>
+<dependency>
+    <groupId>org.zeromq</groupId>
+    <artifactId>jnacl</artifactId>
+    <version>0.1.0</version>
+</dependency>
+<dependency>
+    <groupId>com.sleepycat</groupId>
+    <artifactId>je</artifactId>
+    <version>18.3.1</version>
+</dependency>
+<dependency>  
+            <groupId>org.slf4j</groupId>  
+            <artifactId>slf4j-api</artifactId>  
+            <version>1.7.25</version>  
+        </dependency>  
+        <!--核心log4j2jar包-->  
+        <dependency>  
+           <groupId>org.apache.logging.log4j</groupId>  
+            <artifactId>log4j-api</artifactId>  
+            <version>2.8.2</version>  
+        </dependency>  
+        <dependency>  
+            <groupId>org.apache.logging.log4j</groupId>  
+           <artifactId>log4j-core</artifactId>  
+            <version>2.8.2</version>  
+        </dependency>  
+        <!--用于与slf4j保持桥接-->  
+        <dependency>  
+            <groupId>org.apache.logging.log4j</groupId>  
+            <artifactId>log4j-slf4j-impl</artifactId>  
+            <version>2.8.2</version>  
+         </dependency>  
+  </dependencies>
+  
+</project>

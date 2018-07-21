@@ -1,0 +1,29 @@
+/**    
+ * 文件名：SPUBData.java    
+ *    
+ * 版本信息：    
+ * 日期：2018年7月20日    
+ * Copyright 足下 Corporation 2018     
+ * 版权所有    
+ *    
+ */
+package cd.jason.msgmq;
+
+/**    
+ *     
+ * 项目名称：msgmq    
+ * 类名称：SPUBData    
+ * 类描述：   订阅发布数据组成
+ * 创建人：jinyu    
+ * 创建时间：2018年7月20日 下午11:59:26    
+ * 修改人：jinyu    
+ * 修改时间：2018年7月20日 下午11:59:26    
+ * 修改备注：    
+ * @version     
+ *     
+ */
+public class SPUBData {
+public String topic;
+public String flage;
+public byte[] data=null;
+}

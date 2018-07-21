@@ -1,0 +1,1 @@
+java -jar MQCenter-1.0.0.jar
