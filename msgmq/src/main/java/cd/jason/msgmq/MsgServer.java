@@ -115,6 +115,27 @@ public byte[]  recvice()
 	return request;
 }
 
+/**
+ * 
+ * @Title: recviceProxy   
+ * @Description: 采用代理模式route时的服务接收
+ * @return      
+ * byte[]      
+ * @throws
+ */
+public byte[] recviceProxy()
+{
+	if(socket==null)
+	{
+	   socket = context.createSocket(ZMQ.REP);  //创建一个response类型的socket，他可以接收request发送过来的请求，其实可以将其简单的理解为服务端
+	   socket.setHWM(MsgHWM);
+	   socket.setReceiveBufferSize(bufSize*1024);
+	   socket.setSendBufferSize(bufSize*1024);
+	   socket.connect(address());//这里是连接
+	}
+	byte[] request = socket.recv();  //获取request发送过来的数据
+	return request;
+}
 
 /**
  * 
@@ -188,7 +209,6 @@ public byte[] pull()
 	  socket.connect(this.address());
 	}
 	byte[] req= socket.recv();
-	//socket.send(rspData);
 	return req;
 }
 

@@ -1,0 +1,185 @@
+/**    
+ * 文件名：MQRep.java    
+ *    
+ * 版本信息：    
+ * 日期：2018年7月22日    
+ * Copyright 足下 Corporation 2018     
+ * 版权所有    
+ *    
+ */
+package cd.json.Srv;
+
+import cd.jason.msg.MQClient;
+import cd.jason.msg.MonitorObject;
+import cd.jason.msgmq.MsgClient;
+import cd.jason.msgmq.NetProtocol;
+
+/**    
+ *     
+ * 项目名称：msgmq    
+ * 类名称：MQRep    
+ * 类描述：    
+ * 创建人：jinyu    
+ * 创建时间：2018年7月22日 下午6:52:50    
+ * 修改人：jinyu    
+ * 修改时间：2018年7月22日 下午6:52:50    
+ * 修改备注：    
+ * @version     
+ *     
+ */
+public class MQRep {
+	//发布基础地址
+		public String srvIP="*";
+		public int port=0;
+		public NetProtocol netProtocol=NetProtocol.tcp;
+		private MQClient socket;
+		/**
+		 * 
+		 * @Title: setAddress   
+		 * @Description: 构造地址        
+		 * void      
+		 * @throws
+		 */
+		public void setAddress()
+		{
+			socket.bufSize=this.bufSize;
+			socket.MsgHWM=this.MsgHWM;
+			socket.netProtocol=this.netProtocol;
+			socket.port=this.port;
+			socket.srvIP=this.srvIP;
+		}
+		
+		/**
+		 * 
+		 * @Title: create   
+		 * @Description: 创建实例      
+		 * void      
+		 * @throws
+		 */
+		private void create()
+		{
+			if(socket==null)
+			{
+				socket=new MsgClient();
+				setAddress();
+				MonitorObject.getInstance().addObject(socket);
+			}
+		}
+
+		/**
+		 *  连接服务端
+		 * @Title: sendMsg   
+		 * @Description: 发送数据
+		 * @param data
+		 * @return      
+		 * byte[]      
+		 * @throws
+		 */
+	public byte[]  sendMsg(byte[]data)
+	{
+		create();
+		return socket.sendMsg(data);
+	}
+	/**
+	 * 绑定本机地址
+	 * @Title: Publisher   
+	 * @Description: 发布数据
+	 * @param topic    主题 
+	 * @param data    数据   
+	 * void      
+	 * @throws
+	 */
+	public void publish(String topic,byte[]data)
+	{
+		create();
+		socket.publish(topic, data);
+	}
+
+	/**
+	 * 
+	 * @Title: publishM   
+	 * @Description:发布数据  
+	 * @param topic
+	 * @param data      
+	 * void      
+	 * @throws
+	 */
+	public void publishM(String topic,byte[]data)
+	{
+		create();
+		socket.publishM(topic, data);
+	}
+
+	/**
+	 * 关闭socket,并且重新初始化
+	 * @Title: update   
+	 * @Description: 重新初始化         
+	 * void      
+	 * @throws
+	 */
+	public void update()
+	{
+		if(socket!=null)
+		{
+			socket.close();
+	     	socket.update();
+	     	socket=null;
+		}
+	}
+
+	/**
+	 * 
+	 * @Title: publishBytes   
+	 * @Description: 直接发布处理好的数据 
+	 * @param data      
+	 * void      
+	 * @throws
+	 */
+	public void publishBytes(byte[]data)
+	{
+		create();
+		socket.publishBytes(data);
+	}
+	/**
+	 * 绑定本机地址
+	 * @Title: push   
+	 * @Description: push数据
+	 * @param data      
+	 * void      
+	 * @throws
+	 */
+	public void push(byte[]data)
+	{ 
+		create();
+		socket.push(data);
+	}
+
+	/**
+	 * 
+	 * @Title: isClose   
+	 * @Description: 已经关闭
+	 * @return      
+	 * boolean      
+	 * @throws
+	 */
+	public boolean isClose()
+	{
+		if(socket!=null)
+		return socket.isClose();
+		return false;
+	}
+
+	/**
+	 * 关闭
+	 * @Title: close   
+	 * @Description:  关闭通信      
+	 * void      
+	 * @throws
+	 */
+	public void close()
+	{
+		if(socket!=null)
+	        socket.close();
+	}
+
+}

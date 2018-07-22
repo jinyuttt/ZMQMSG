@@ -1,0 +1,263 @@
+/**    
+ * 文件名：MsgServer.java    
+ *    
+ * 版本信息：    
+ * 日期：2018年7月8日    
+ * Copyright 足下 Corporation 2018     
+ * 版权所有    
+ *    
+ */
+package cd.jason.msgmq;
+
+import org.zeromq.ZMQ;
+
+/**    
+ *     
+ * 项目名称：msgmq    
+ * 类名称：MsgServer    
+ * 类描述：   服务端代码
+ * 创建人：jinyu    
+ * 创建时间：2018年7月8日 下午2:26:09    
+ * 修改人：jinyu    
+ * 修改时间：2018年7月8日 下午2:26:09    
+ * 修改备注：    
+ * @version     
+ *     
+ */
+public class MsgServer {
+	ZMQ.Context context=null;
+	/**
+	 * 绑定地址
+	 * 也是路由地址
+	 */
+	public String srvIP="*";
+	
+	/**
+	 * 绑定端口
+	 * 也是路由端口
+	 */
+	public int port=0;
+	
+	/**
+	 * 协议
+	 */
+	public NetProtocol netProtocol;
+	
+	/**
+	 * 后端分发IP
+	 * 路由模式
+	 */
+	public String backIP="*";
+	
+	/**
+	 * 后端端口
+	 * 路由模式
+	 */
+	public int backPort=0;
+	public int bufSize=128;
+	public int MsgHWM=1000;
+	private String frontaddr="";
+	private String backaddr="";
+	ZMQ.Socket socket=null;
+	ZMQ.Socket backPoint=null;
+	byte[] rspData="reviceRsp".getBytes();
+	public MsgServer()
+	{
+		//创建一个I/O线程的上下文
+		 context = ZMQ.context(1);
+	}
+	
+	/**   
+	 * @Title: address   
+	 * @Description: 构建地址
+	 * @return      
+	 * String      
+	 * @throws   
+	 */
+	private String address()
+	{
+		if(frontaddr.isEmpty())
+		{
+		   StringBuffer buf=new StringBuffer();
+		   buf.append(netProtocol.name());
+		   buf.append("://");
+		   buf.append(srvIP);
+		   buf.append(":");
+		   buf.append(port);
+		   frontaddr=buf.toString();
+		}
+		return frontaddr;
+	}
+	
+	/**
+	 * 
+	 * @Title: backAddr   
+	 * @Description: 后端地址
+	 * @return      
+	 * String      
+	 * @throws
+	 */
+	private String backAddr()
+	{
+		if(backaddr.isEmpty())
+		{
+		   StringBuffer buf=new StringBuffer();
+		   buf.append(netProtocol.name());
+		   buf.append("://");
+		   buf.append(backIP);
+		   buf.append(":");
+		   buf.append(backPort);
+		   backaddr=buf.toString();
+		}
+		return backaddr;
+	}
+	
+	/**
+	 * 
+	 * @Title: setRsp   
+	 * @Description: 设置回复数据
+	 * @param data      
+	 * void      
+	 * @throws
+	 */
+	public void setRsp(byte[]data)
+	{
+		//this.rspData=data;
+		if(socket!=null)
+		socket.send(data);
+	}
+	/**
+	 * 
+	 * @Title: recvice   
+	 * @Description: 接收数据  
+	 * @return      
+	 * byte[]      
+	 * @throws
+	 */
+public byte[]  recvice()
+{
+	if(socket==null)
+	{
+	   socket = context.socket(ZMQ.REP);  //创建一个response类型的socket，他可以接收request发送过来的请求，其实可以将其简单的理解为服务端
+	   socket.setHWM(MsgHWM);
+	   socket.setReceiveBufferSize(bufSize*1024);
+	   socket.setSendBufferSize(bufSize*1024);
+	   socket.bind(address());    //绑定端口
+	}
+	byte[] request = socket.recv();  //获取request发送过来的数据
+	return request;
+}
+
+
+/**
+ * 
+ * @Title: Subscriber   
+ * @Description: 订阅数据  
+ * @param topic
+ * @return      
+ * byte[]      
+ * @throws
+ */
+public void subscriber(String topic)
+{
+	if(socket==null)
+	{
+		if(topic==null)
+		{
+			topic="";
+		}
+	    socket = context.socket(ZMQ.SUB);  //创建一个response类型的socket，他可以接收request发送过来的请求，其实可以将其简单的理解为服务端
+	    socket.setHWM(MsgHWM);
+	    socket.setReceiveBufferSize(bufSize*1024);
+	    socket.setSendBufferSize(bufSize*1024);
+	    socket.connect(this.address());
+	}
+	socket.subscribe(topic);//订阅所有
+}
+
+/**
+ * 
+ * @Title: subscriberData   
+ * @Description: 获取订阅时的数据  
+ * @param topic
+ * @return      
+ * byte[]      
+ * @throws
+ */
+public byte[] subscriberData()
+{
+	if(socket!=null)
+	{
+	  byte[]req= socket.recv();
+	  return req;
+	}
+	return null;
+}
+
+/**
+ * 连接处理地址
+ * @Title: pull   
+ * @Description: 处理数据
+ * @return      
+ * byte[]      
+ * @throws
+ */
+public byte[] pull()
+{
+	if(socket==null)
+	{
+	  socket = context.socket(ZMQ.PULL);
+	  socket.setHWM(MsgHWM);
+	   socket.setReceiveBufferSize(bufSize*1024);
+	   socket.setSendBufferSize(bufSize*1024);
+	  socket.connect(this.address());
+	}
+	byte[] req= socket.recv();
+	//socket.send(rspData);
+	return req;
+}
+
+/**
+ *  绑定本机地址
+ * @Title: router   
+ * @Description: 开启路由处理        
+ * void      
+ * @throws
+ */
+public void router()
+{
+	if(socket==null)
+	{
+        socket = context.socket(ZMQ.ROUTER); 
+        socket.setHWM(MsgHWM);
+ 	   socket.setReceiveBufferSize(bufSize*1024);
+ 	   socket.setSendBufferSize(bufSize*1024);
+        socket.bind(this.address());
+	}
+	if(backPoint==null)
+	{
+		backPoint=context.socket(ZMQ.DEALER);
+		backPoint.setHWM(MsgHWM);
+		backPoint.setReceiveBufferSize(bufSize*1024);
+		backPoint.setSendBufferSize(bufSize*1024);
+		backPoint.bind(this.backAddr());
+	}
+    ZMQ.proxy(socket, backPoint, null);  
+}
+
+/**
+ * 
+ * @Title: close   
+ * @Description: 关闭      
+ * void      
+ * @throws
+ */
+public void close()
+{
+	if(socket!=null)
+	{
+		socket.close();
+	}
+	   context.term(); 
+}
+}

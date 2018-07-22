@@ -1,0 +1,117 @@
+/**    
+ * 文件名：MsgClient.java    
+ *    
+ * 版本信息：    
+ * 日期：2018年7月8日    
+ * Copyright 足下 Corporation 2018     
+ * 版权所有    
+ *    
+ */
+package cd.jason.msg;
+
+import cd.jason.msgmq.MsgClient;
+import cd.jason.msgmq.NetProtocol;
+
+/**    
+ *     
+ * 项目名称：msgmq    
+ * 类名称：MsgClient    
+ * 类描述： 通信客户端   
+ * 创建人：jinyu    
+ * 创建时间：2018年7月8日 下午2:25:51    
+ * 修改人：jinyu    
+ * 修改时间：2018年7月8日 下午2:25:51    
+ * 修改备注：    
+ * @version     
+ *     
+ */
+public class MQClient {
+
+	public String srvIP="*";
+	public int port=0;
+	public NetProtocol netProtocol;
+	public int bufSize=128;
+	public int MsgHWM=1000;
+	MsgClient socket=null;
+	private HashMap<String,String> map=new HashMap<String,String>();
+	public MQClient()
+	{
+		socket=new MsgClient();
+		MonitorObject.instance.add(socket);
+	}
+	
+	   
+	/**
+	 * 
+	 * @Title: setAddress   
+	 * @Description: 构造地址        
+	 * void      
+	 * @throws
+	 */
+	public void setAddress()
+	{
+		socket.bufSize=this.bufSize;
+		socket.MsgHWM=this.MsgHWM;
+		socket.netProtocol=this.netProtocol;
+		socket.port=this.port;
+		socket.srvIP=this.srvIP;
+	}
+	
+
+	/**
+	 * 连接服务端
+	 * @Title: sendMsg   
+	 * @Description: 发送数据
+	 * @param data
+	 * @return      
+	 * byte[]      
+	 * @throws
+	 */
+public byte[]  sendMsg(byte[]data)
+{
+	return socket.sendMsg(data);
+}
+/**
+ * 绑定本机地址
+ * @Title: Publisher   
+ * @Description: 发布数据
+ * @param topic    主题 
+ * @param data    数据   
+ * void      
+ * @throws
+ */
+public void publish(String topic,byte[]data)
+{
+	socket.publish(topic, data);
+}
+public void publishM(String topic,byte[]data)
+{
+	socket.publishM(topic, data);
+}
+
+/**
+ * 绑定本机地址
+ * @Title: push   
+ * @Description: push数据
+ * @param data      
+ * void      
+ * @throws
+ */
+public void push(byte[]data)
+{ 
+	socket.push(data);
+}
+
+
+/**
+ * 关闭
+ * @Title: close   
+ * @Description:  关闭通信      
+ * void      
+ * @throws
+ */
+public void close()
+{
+   socket.close();
+}
+}

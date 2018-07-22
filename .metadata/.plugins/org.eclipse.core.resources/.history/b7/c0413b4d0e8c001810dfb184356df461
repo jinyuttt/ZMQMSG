@@ -1,0 +1,43 @@
+/**    
+ * 文件名：ResetCheck.java    
+ *    
+ * 版本信息：    
+ * 日期：2018年7月20日    
+ * Copyright 足下 Corporation 2018     
+ * 版权所有    
+ *    
+ */
+package cd.jason.msg;
+
+import java.util.HashMap;
+
+/**    
+ *     
+ * 项目名称：msgmq    
+ * 类名称：ResetCheck    
+ * 类描述：    
+ * 创建人：jinyu    
+ * 创建时间：2018年7月20日 下午7:10:31    
+ * 修改人：jinyu    
+ * 修改时间：2018年7月20日 下午7:10:31    
+ * 修改备注：    
+ * @version     
+ *     
+ */
+public class ResetCheck {
+	HashMap<String,String> map=new HashMap<String,String>();
+public boolean checkReset(String flage)
+{
+	String k=map.getOrDefault(flage, null);
+	if(k==null)
+	{
+		return 
+	}
+	String[] sf=flage.split("|");
+	if(sf.length==3)
+	{
+		
+	}
+	return false;
+}
+}

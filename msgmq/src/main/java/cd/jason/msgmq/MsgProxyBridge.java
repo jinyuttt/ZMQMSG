@@ -9,8 +9,6 @@
  */
 package cd.jason.msgmq;
 
-import java.nio.ByteBuffer;
-
 import org.zeromq.ZContext;
 import org.zeromq.ZMQ;
 
@@ -227,6 +225,7 @@ public void router()
     ZMQ.proxy(socket, backPoint, null);  
 }
 
+
 /**
  * 
  * @Title: zmq_pub_sub   
@@ -264,7 +263,7 @@ public  void zmq_pub_sub()
 		PubSocket.bind(this.cascadedAddr());
 		System.out.println(cascadedAddr());
 	}
-    ZMQ.proxy(socket, backPoint, null);
+    ZMQ.proxy(socket, backPoint, PubSocket);
 }
 
 /**
@@ -294,7 +293,7 @@ public void zmq_pub_sub_kz()
 
 
 /**
- * 
+ *  订阅自己所有数据，并且通过级联发送出去     
  * @Title: zmq_pub_sub_self   
  * @Description: 订阅自己所有数据，并且通过级联发送出去         
  * void      

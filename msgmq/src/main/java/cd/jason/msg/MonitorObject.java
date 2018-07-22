@@ -197,8 +197,9 @@ public class MonitorObject {
 			Entry<MQServer, MQCenterInfo> kv=item.next();
 			MQCenterInfo info = kv.getValue();
 			MQServer c=kv.getKey();
-			if(c.isClose())
+			if(c.isClose()||!c.isMQ)
 			{
+				//如果已经关闭或者不是发布订阅模型则移除
 				item.remove();
 			}
 			if(!this.ischeckUpdate)

@@ -1,0 +1,126 @@
+/**    
+ * 文件名：DataMsg.java    
+ *    
+ * 版本信息：    
+ * 日期：2018年7月20日    
+ * Copyright 足下 Corporation 2018     
+ * 版权所有    
+ *    
+ */
+package cd.jason.msgmq;
+
+import java.nio.ByteBuffer;
+
+import cd.jason.config.DataConfig;
+
+/**    
+ *     
+ * 项目名称：msgmq    
+ * 类名称：DataMsg    
+ * 类描述：    
+ * 创建人：jinyu    
+ * 创建时间：2018年7月20日 下午11:56:42    
+ * 修改人：jinyu    
+ * 修改时间：2018年7月20日 下午11:56:42    
+ * 修改备注：    
+ * @version     
+ *     
+ */
+public class DataMsg {
+	
+	/**
+	 * 
+	 * @Title: removeFlage   
+	 * @Description: 移除标识 ,data带主题
+	 * @param data
+	 * @return      
+	 * byte[]      
+	 * @throws
+	 */
+public static SPUBData removeFlageWith(byte[]data)
+{
+	SPUBData model=new SPUBData();
+	 String recData=new String(data);
+	 int index=recData.indexOf(" ");//找到第一个空格
+	 String topic=recData.substring(0, index).trim();
+	 if(DataConfig.isAddFlage)
+	 {
+		 //取出最近的数据
+		StringBuffer buf=new StringBuffer();
+		buf.append(recData);
+		buf.delete(0, index+1);
+		index=buf.indexOf(" ");
+		String flage=buf.substring(0,index);
+		//移除标识返回
+		int num=flage.getBytes().length;
+		byte[] topics=topic.getBytes();
+		ByteBuffer bufs=ByteBuffer.wrap(new byte[data.length-num]);
+		bufs.put(topics);
+		bufs.put(" ".getBytes());
+		bufs.put(data, num+topics.length+2, data.length-num-topic.getBytes().length-2);
+		data=bufs.array();
+		model.flage=flage;
+		}
+	 model.data=data;
+	 model.topic=topic;
+	return model; 
+}
+
+public static SPUBData removeFlage(byte[]data)
+{
+	SPUBData model=new SPUBData();
+	 String recData=new String(data);
+	 int index=recData.indexOf(" ");//找到第一个空格
+	 String topic=recData.substring(0, index).trim();
+	 ByteBuffer bufs=ByteBuffer.wrap(data);
+	 int tLen=topic.getBytes().length;
+	 if(DataConfig.isAddFlage)
+	 {
+		 //取出最近的数据
+		StringBuffer buf=new StringBuffer();
+		buf.append(recData);
+		buf.delete(0, index+1);
+		index=buf.indexOf(" ");
+		String flage=buf.substring(0,index);
+		//移除标识返回
+		int num=flage.getBytes().length;
+		byte[] topics=topic.getBytes();
+		bufs.put(topics);
+		bufs.put(" ".getBytes());
+		bufs.put(data, num+topics.length+2, data.length-num-topic.getBytes().length-2);
+		data=bufs.array();
+		model.flage=flage;
+		}
+	 model.data=data;
+	 model.topic=topic;
+	return model; 
+}
+/**
+ * 
+ * @Title: zm_sub_pub   
+ * @Description: 组合发布数据   
+ * @param topic
+ * @param data
+ * @return      
+ * byte[]      
+ * @throws
+ */
+public static byte[] zm_sub_pub(String topic,byte[]data)
+{
+	byte[] topicByte=null;
+	if(topic==null||topic.isEmpty())
+	{
+		topicByte=new byte[0];
+	}
+	else
+	{
+		 topicByte=(topic+" ").getBytes();
+	}
+	byte[] flage=DataConfig.getIDBytes();
+	byte[] buf=new byte[topicByte.length+data.length+flage.length];
+	System.arraycopy(topicByte, 0, buf, 0, topicByte.length);
+	System.arraycopy(flage, 0, buf, topicByte.length, flage.length);
+	System.arraycopy(data, 0, buf, topicByte.length+flage.length, data.length);
+	return buf;
+}
+}

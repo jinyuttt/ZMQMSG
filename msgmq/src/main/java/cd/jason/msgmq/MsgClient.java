@@ -358,6 +358,7 @@ public void senRecTimeOut(int value)
 	if(socket!=null)
 	   socket.setReceiveTimeOut(value);
 }
+
 /**
  * 
  * @Title: isClose   

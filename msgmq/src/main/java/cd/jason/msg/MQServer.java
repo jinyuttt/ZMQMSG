@@ -22,7 +22,7 @@ import cd.jason.msgmq.NetProtocol;
  *     
  * 项目名称：msgmq    
  * 类名称：MsgServer    
- * 类描述：  服务端代码
+ * 类描述：  通信服务端中间层，外部不直接使用   
  * 创建人：jinyu    
  * 创建时间：2018年7月8日 下午2:26:09    
  * 修改人：jinyu    
@@ -61,6 +61,7 @@ public class MQServer {
 	public NetProtocol srcreqProtocol=NetProtocol.tcp;
 	private List<String> lstTopic=new ArrayList<String>();
 	private ResetCheck repeat=null;
+	public volatile boolean isMQ=false;//是否作为发布订阅模型
 	public MQServer()
 	{
 		MonitorObject.getInstance().add(this);
@@ -140,9 +141,11 @@ public class MQServer {
 				case PULL:
 					data=pull();
 					break;
-				case SUBPU:
+				case SUBPUB:
 					data=subscriberData();
 					break;
+				case ROUTE:
+					data= recviceProxy();
 				default:
 					break;
 				}
@@ -185,6 +188,7 @@ public class MQServer {
 		}
 		return null;
 	}
+	
 	/**
 	 * 
 	 * @Title: recvice   
@@ -198,7 +202,19 @@ public class MQServer {
     	this.create();
 	    return socket.recvice();
     }
-
+    /**
+	 * 
+	 * @Title: recvice   
+	 * @Description: 接收数据  
+	 * @return      
+	 * byte[]      
+	 * @throws
+	 */
+    public byte[]  recviceProxy()
+    {
+    	this.create();
+	    return socket.recviceProxy();
+    }
 
 /**
  * 
@@ -326,7 +342,7 @@ public byte[] pull()
 public boolean isClose()
 {
 	if(socket!=null)
-	return socket.isClose();
+	   return socket.isClose();
 	return false;
 }
 /**

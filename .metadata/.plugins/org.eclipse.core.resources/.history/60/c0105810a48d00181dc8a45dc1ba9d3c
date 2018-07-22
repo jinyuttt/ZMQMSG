@@ -1,0 +1,221 @@
+/**    
+ * 文件名：ObjectSingleRep.java    
+ *    
+ * 版本信息：    
+ * 日期：2018年7月22日    
+ * Copyright 足下 Corporation 2018     
+ * 版权所有    
+ *    
+ */
+package cd.jason.Srv;
+
+import cd.jason.msg.ObjectSerialize;
+import cd.jason.msg.ProcessMode;
+import cd.jason.msgmq.NetProtocol;
+
+/**    
+ *     
+ * 项目名称：msgmq    
+ * 类名称：ObjectSingleRep    
+ * 类描述：    
+ * 创建人：jinyu    
+ * 创建时间：2018年7月22日 下午7:39:48    
+ * 修改人：jinyu    
+ * 修改时间：2018年7月22日 下午7:39:48    
+ * 修改备注：    
+ * @version     
+ *     
+ */
+public class ObjectSingleRep<T> {
+	/**
+	 * 绑定地址
+	 * 也是路由地址
+	 */
+	public String srvIP="*";
+	
+	/**
+	 * 绑定端口
+	 * 也是路由端口
+	 */
+	public int port=0;
+	
+	/**
+	 * 协议
+	 */
+	public NetProtocol netProtocol;
+	
+	public int bufSize=128;//kb
+	public int MsgHWM=1000;//zmq底层缓存数据量
+    private MQRep socket=null;//封装通信
+    public String ObjProtocol="Byte";//序列化方式，Byte或者Json
+	private ObjectSerialize<T> msgDeserialize=null;//反序列化接口
+	
+	/**
+	 * 
+	 * @Title: setAddress   
+	 * @Description: 构造地址        
+	 * void      
+	 * @throws
+	 */
+	public void setAddress()
+	{
+		socket.bufSize=this.bufSize;
+		socket.MsgHWM=this.MsgHWM;
+		socket.netProtocol=this.netProtocol;
+		socket.port=this.port;
+		socket.srvIP=this.srvIP;
+	}
+	
+	/**
+	 * 
+	 * @Title: setRsp   
+	 * @Description: 设置回复数据
+	 * @param data      
+	 * void      
+	 * @throws
+	 */
+	public <V> void  setRsp(V obj)
+	{
+	
+		if(socket!=null)
+		{
+			byte[]data=serialize(obj);
+		    socket.setRsp(data);
+		}
+	}
+	
+	/**
+	 * 
+	 * @Title: serialize   
+	 * @Description: 序列化  
+	 * @param obj
+	 * @return      
+	 * byte[]      
+	 * @throws
+	 */
+	private <V> byte[] serialize(V obj)
+	{
+		ObjectSerialize<V> msgSerialize=new ObjectSerialize<V>();
+		if(ObjProtocol.toLowerCase().equals("byte"))
+		{
+		   return msgSerialize.serialize(obj);
+		}
+		else if(ObjProtocol.toLowerCase().equals("json"))
+		{
+			return msgSerialize.serializeJson(obj).getBytes();
+		}
+		return null;
+		
+	}
+	
+	/**
+	 * 
+	 * @Title: deserialize   
+	 * @Description: 反序列  
+	 * @param data
+	 * @param clazz
+	 * @return      
+	 * T      
+	 * @throws
+	 */
+	private  T deserialize(byte[] data,Class<T> clazz)
+	{
+		 ObjectSerialize<T> msgDeserialize=new ObjectSerialize<T>();
+		if(ObjProtocol.toLowerCase().equals("byte"))
+		{
+		return msgDeserialize.deserialize(data, clazz);
+		}
+		else if(ObjProtocol.toLowerCase().equals("json"))
+		{
+			String json=String.valueOf(data);
+			return msgDeserialize.deserializeJSON(json, clazz);
+		}
+		return null;
+	}
+	
+	/**
+	 * 
+	 * @Title: start   
+	 * @Description: 启动初始化，通过阻塞获取数据
+	 * @param mode      
+	 * void      
+	 * @throws
+	 */
+	public boolean start(ProcessMode mode)
+	{
+		return socket.start(mode);
+	}
+	/**
+	 * 
+	 * @Title: getData   
+	 * @Description: 获取阻塞数据   
+	 * @param clazz
+	 * @return      
+	 * T      
+	 * @throws
+	 */
+	public <T> T getData(Class<T> clazz)
+	{
+		byte[] data=socket.getData();
+		T obj=this.deserialize(data, clazz);
+		return obj;
+	}
+	
+	/**
+	 * 
+	 * @Title: recvice   
+	 * @Description: 接收数据  
+	 * @return      
+	 * byte[]      
+	 * @throws
+	 */
+    public <T> T  recvice(Class<T> clazz)
+    {
+    	byte[] data=socket.recvice();
+		T obj=this.deserialize(data, clazz);
+		return obj;
+    }
+    /**
+	 * 
+	 * @Title: recvice   
+	 * @Description: 接收数据  
+	 * @return      
+	 * byte[]      
+	 * @throws
+	 */
+    public <T> T  recviceProxy(Class<T> clazz)
+    {
+    	byte[] data=socket.recviceProxy();
+		T obj=this.deserialize(data, clazz);
+		return obj;
+    }
+/**
+ * 连接处理地址
+ * @Title: pull   
+ * @Description: 处理数据
+ * @return      
+ * byte[]      
+ * @throws
+ */
+public <T> T pull(Class<T> clazz)
+{
+	byte[] data=socket.pull();
+	T obj=this.deserialize(data, clazz);
+	return obj;
+}
+
+/**
+ * 
+ * @Title: close   
+ * @Description: 关闭      
+ * void      
+ * @throws
+ */
+public void close()
+{
+	if(socket!=null)
+	{
+		socket.close();
+	}
+}
+}

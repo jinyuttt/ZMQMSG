@@ -1,0 +1,304 @@
+/**    
+ * 文件名：BerkeleyDB.java    
+ *    
+ * 版本信息：    
+ * 日期：2018年7月19日    
+ * Copyright 足下 Corporation 2018     
+ * 版权所有    
+ *    
+ */
+package cd.jason.db;
+
+import java.io.File;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map.Entry;
+import java.util.concurrent.TimeUnit;
+
+import com.sleepycat.je.CacheMode;
+import com.sleepycat.je.Cursor;
+import com.sleepycat.je.Database;
+import com.sleepycat.je.DatabaseConfig;
+import com.sleepycat.je.DatabaseEntry;
+import com.sleepycat.je.DatabaseException;
+import com.sleepycat.je.Durability;
+import com.sleepycat.je.Environment;
+import com.sleepycat.je.EnvironmentConfig;
+import com.sleepycat.je.EnvironmentMutableConfig;
+import com.sleepycat.je.LockMode;
+import com.sleepycat.je.OperationStatus;
+import com.sleepycat.je.Transaction;
+import com.sleepycat.je.TransactionConfig;
+
+
+
+
+/**    
+ *     
+ * 项目名称：msgmq    
+ * 类名称：BerkeleyDB    
+ * 类描述：    
+ * 创建人：jinyu    
+ * 创建时间：2018年7月19日 上午1:06:55    
+ * 修改人：jinyu    
+ * 修改时间：2018年7月19日 上午1:06:55    
+ * 修改备注：    
+ * @version     
+ *     
+ */
+public class BerkeleyDB {
+private File envDir;
+Database myDatabase=null;
+Cursor myCursor = null;
+private Environment myEnvironment=null;
+public BerkeleyDB(String dbFile)
+{
+	envDir=new File(dbFile);
+	init();
+	initDB();
+}
+
+/**
+ * 
+ * @Title: init   
+ * @Description: 初始化存储
+ * void      
+ * @throws
+ */
+public void init()
+{
+	 EnvironmentConfig envConfig = new EnvironmentConfig();
+	 envConfig.setAllowCreateVoid(true);
+	 envConfig.setTransactional(true);
+     // will throw if timeout value is invalid
+     envConfig.setLockTimeout(250, TimeUnit.MILLISECONDS);
+     // Open the environment using this configuration.
+      //envConfig.setConfigParam(EnvironmentConfig.ENV_RUN_CLEANER, "false");
+     //事物提交写入设置  
+     envConfig.setDurability(Durability.COMMIT_WRITE_NO_SYNC);  
+     //序列化
+     envConfig.setTxnSerializableIsolation(true); 
+    if(!envDir.exists())
+    {
+    	envDir.mkdir();
+    }
+      myEnvironment = new Environment(envDir, envConfig);
+     EnvironmentMutableConfig envMutableConfig =
+    	        new EnvironmentMutableConfig();
+    	    myEnvironment.setMutableConfig(envMutableConfig);
+    	  
+}
+
+/**
+ * 
+ * @Title: initDB   
+ * @Description: 初始化db  
+ * void      
+ * @throws
+ */
+public void initDB()
+{
+	try
+	{
+	    DatabaseConfig dbConfig = new DatabaseConfig();
+	    dbConfig.setAllowCreate(true);
+	    dbConfig.setTransactional(true);
+	    dbConfig.setExclusiveCreate(true);
+	    dbConfig.setCacheModeVoid(CacheMode.DEFAULT);
+	    dbConfig.setSortedDuplicates(true);  
+	    myDatabase = myEnvironment.openDatabase(null, "dataCache", dbConfig); //打开一个数据库，数据库名为
+	                            //sampleDatabase,数据库的配置为dbConfig
+	    
+	} catch (DatabaseException dbe) {
+	  dbe.printStackTrace();
+	}
+}
+
+/**
+ * 
+ * @Title: put   
+ * @Description:保持 
+ * @param key
+ * @param data      
+ * void      
+ * @throws
+ */
+public void put(String key,byte[] data)
+{
+	 DatabaseEntry theKey = new DatabaseEntry(key.getBytes());
+     DatabaseEntry theData = new DatabaseEntry(data);
+     myDatabase.put(null, theKey, theData);
+}
+
+/**
+ * 
+ * @Title: get   
+ * @Description: 获取数据   
+ * @param key
+ * @return      
+ * byte[]      
+ * @throws
+ */
+public byte[] get(String key)
+{
+	   DatabaseEntry theKey = new DatabaseEntry(key.getBytes());
+	    DatabaseEntry theData = new DatabaseEntry();
+	 if (myDatabase.get(null, theKey, theData, LockMode.DEFAULT) ==
+		        OperationStatus.SUCCESS) {
+		        byte[] retData = theData.getData();
+		     return retData;
+}
+	return null;
+}
+
+/**
+ * 
+ * @Title: delete   
+ * @Description: 删除数据 
+ * @param key      
+ * void      
+ * @throws
+ */
+	 public void delete(String key)
+	 {
+		 try {
+			  
+			    DatabaseEntry theKey = new DatabaseEntry(key.getBytes());
+			    myDatabase.delete(null, theKey);
+			} catch (Exception e) {
+			}
+		 
+	 }
+	 
+	 /**
+	  * 
+	  * @Title: getAll   
+	  * @Description: 获取所有数据  
+	  * @return      
+	  * HashMap<String,byte[]>      
+	  * @throws
+	  */
+	 public HashMap<String,byte[]> getAll()
+	 {
+		 HashMap<String,byte[]> map=new HashMap<String,byte[]> ();
+		 Cursor cursor = myDatabase.openCursor(null, null);
+		 DatabaseEntry foundKey = new DatabaseEntry();
+		 DatabaseEntry foundData = new DatabaseEntry();
+		 // 通过cursor.getNex方法来遍历记录
+		 while (cursor.getNext(foundKey, foundData, LockMode.DEFAULT) ==
+		 OperationStatus.SUCCESS) {
+			 String key=new String(foundKey.getData());
+			 map.put(key, foundData.getData())	;
+		 }
+		return map;
+	 }
+	 
+	 /**
+	  *  重复数据不存储
+	  * @Title: pulAll   
+	  * @Description: 保持数据
+	  * @param map      
+	  * void      
+	  * @throws
+	  */
+	 public void pulAll(HashMap<String,byte[]> map)
+	 {
+		 if(map==null)
+		 {
+			 return;
+		 }
+		 TransactionConfig txConfig = new TransactionConfig();
+		  txConfig.setWriteNoSyncVoid(true);
+		  Transaction      txn = myEnvironment.beginTransaction(null, txConfig);
+		  Iterator<Entry<String, byte[]>> item= map.entrySet().iterator();
+		  while(item.hasNext())
+		  {
+			Entry<String, byte[]> kv = item.next();
+		   DatabaseEntry theKey = new DatabaseEntry(kv.getKey().getBytes());
+	       DatabaseEntry theData = new DatabaseEntry(kv.getValue());
+		   myDatabase.putNoDupData(txn, theKey, theData);
+		  }
+		  txn.commit();
+	 }
+	 
+	 /**
+	  * 
+	  * @Title: deletePreAll   
+	  * @Description: TODO(这里用一句话描述这个方法的作用)   
+	  * @param key      
+	  * void      
+	  * @throws
+	  */
+	 public void deletePreAll(String key)
+	 {
+		  //TransactionConfig txConfig = new TransactionConfig();
+		   Transaction      txn = myEnvironment.beginTransaction(null, null);
+		   Cursor curor = myDatabase.openCursor(txn, null);
+		   DatabaseEntry   theData = new DatabaseEntry();//单条件查询，把之前的thedata设置为空
+		   DatabaseEntry   theKey = new DatabaseEntry(key.getBytes());
+		   OperationStatus retVal = curor.getSearchKeyRange(theKey, theData, LockMode.DEFAULT);
+		   if (retVal != OperationStatus.NOTFOUND) {   
+			   while(curor.getPrev(theKey, theData, LockMode.DEFAULT)==OperationStatus.SUCCESS)
+			   {
+				  curor.delete();
+			   }
+		   }
+		   curor.close();
+		   txn.commit();
+		   
+	 }
+	 
+	 /**
+	  * 
+	  * @Title: deleteNextAll   
+	  * @Description: 
+	  * @param key      
+	  * void      
+	  * @throws
+	  */
+	 public void deleteNextAll(String key)
+	 {
+		  TransactionConfig txConfig = new TransactionConfig();
+		   Transaction      txn = myEnvironment.beginTransaction(null, txConfig);
+		   Cursor curor = myDatabase.openCursor(txn, null);
+		   DatabaseEntry   theData = new DatabaseEntry();//单条件查询，把之前的thedata设置为空
+		   DatabaseEntry   theKey = new DatabaseEntry(key.getBytes());
+		   OperationStatus retVal = curor.getSearchKeyRange(theKey, theData, LockMode.DEFAULT);
+		   if (retVal != OperationStatus.NOTFOUND) {   
+			   while(curor.getNext(theKey, theData, LockMode.DEFAULT)==OperationStatus.SUCCESS)
+			   {
+				  curor.delete();
+			   }
+		   }
+		   txn.commit();
+		   curor.close();
+	 }
+	 
+	 /**
+	  * 
+	  * @Title: clear   
+	  * @Description: TODO(这里用一句话描述这个方法的作用)         
+	  * void      
+	  * @throws
+	  */
+	 public void clear()
+	 {
+		 myEnvironment.cleanLog();
+		 myEnvironment.cleanLogFile();
+		 
+		 
+	 }
+public void close()
+{
+	try {
+        if (myDatabase != null) {
+            myDatabase.close();
+        }
+        if (myEnvironment != null) {
+        	myEnvironment.close();
+        }
+} catch (DatabaseException dbe) {
+    // 错误处理
+}
+}
+}

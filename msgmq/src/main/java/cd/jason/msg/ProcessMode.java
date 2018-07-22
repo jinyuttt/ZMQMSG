@@ -25,5 +25,6 @@ package cd.jason.msg;
 public enum ProcessMode {
 REQRSP,
 PULL,
-SUBPU
+SUBPUB,
+ROUTE
 }

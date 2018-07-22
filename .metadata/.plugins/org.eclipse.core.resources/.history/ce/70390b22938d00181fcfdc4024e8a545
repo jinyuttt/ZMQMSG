@@ -1,0 +1,49 @@
+/**    
+ * 文件名：ServerProxy.java    
+ *    
+ * 版本信息：    
+ * 日期：2018年7月22日    
+ * Copyright 足下 Corporation 2018     
+ * 版权所有    
+ *    
+ */
+package cd.jason.MQCenter;
+
+import cd.jason.msgmq.MsgProxyBridge;
+
+/**    
+ *     
+ * 项目名称：MQCenter    
+ * 类名称：ServerProxy    
+ * 类描述：    
+ * 创建人：jinyu    
+ * 创建时间：2018年7月22日 下午5:36:57    
+ * 修改人：jinyu    
+ * 修改时间：2018年7月22日 下午5:36:57    
+ * 修改备注：    
+ * @version     
+ *     
+ */
+public class ServerProxy {
+	MsgProxyBridge server=null;
+public void start()
+{
+	server=new MsgProxyBridge();
+	Thread start=new Thread(new Runnable() {
+		public void run() {
+	    	server.srvIP="*";
+	    	server.backIP="*";
+	    	server.port=AppConfig.frontPort;
+	    	server.backPort=AppConfig.endPort;
+	    	//
+	    	System.out.println("启动服务代理");
+	    	server.router();
+	    	
+		}
+		
+	});
+	start.setDaemon(true);
+	start.setName("msgProxyCenter");
+    start.start();
+}
+}

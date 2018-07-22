@@ -1,0 +1,234 @@
+/**    
+ * 文件名：ObjectSingleSub.java    
+ *    
+ * 版本信息：    
+ * 日期：2018年7月22日    
+ * Copyright 足下 Corporation 2018     
+ * 版权所有    
+ *    
+ */
+package cd.jason.mq;
+
+import cd.jason.msg.MQServer;
+import cd.jason.msg.MonitorObject;
+import cd.jason.msg.ObjectSerialize;
+import cd.jason.msg.ProcessMode;
+import cd.jason.msgmq.NetProtocol;
+
+/**    
+ *     
+ * 项目名称：msgmq    
+ * 类名称：ObjectSingleSub    
+ * 类描述：     发布订阅模型订阅对象泛型类
+ * 创建人：jinyu    
+ * 创建时间：2018年7月22日 下午7:35:44    
+ * 修改人：jinyu    
+ * 修改时间：2018年7月22日 下午7:35:44    
+ * 修改备注：    
+ * @version     
+ *     
+ */
+public class ObjectSingleSub<T> {
+	/**
+	 * 绑定地址
+	 * 也是路由地址
+	 */
+	public String srvIP="*";
+	
+	/**
+	 * 绑定端口
+	 * 也是路由端口
+	 */
+	public int port=0;
+	
+	/**
+	 * 协议
+	 */
+	public NetProtocol netProtocol=NetProtocol.tcp;
+	public int bufSize=128;
+	public int MsgHWM=1000;
+	MQServer socket=null;
+	//请求服务原地址
+	public String srcreqIP="127.0.0.1";
+	public int  srcreqPort=51000;
+	public NetProtocol srcreqProtocol=NetProtocol.tcp;
+	public String ObjProtocol="Byte";//序列化方式，Byte或者Json
+	private ObjectSerialize<T> msgDeserialize=null;//反序列化接口
+	private volatile boolean isStart=false;
+	
+	/**
+	 * 
+	 * @Title: setAddress   
+	 * @Description: 构造地址        
+	 * void      
+	 * @throws
+	 */
+	public void setAddress()
+	{
+		socket.bufSize=this.bufSize;
+		socket.MsgHWM=this.MsgHWM;
+		socket.netProtocol=this.netProtocol;
+		socket.port=this.port;
+		socket.srvIP=this.srvIP;
+		socket.srcreqIP=this.srcreqIP;
+		socket.srcreqPort=this.srcreqPort;
+		socket.srcreqProtocol=this.srcreqProtocol;
+	}
+	
+	/**
+	 * 
+	 * @Title: create   
+	 * @Description: 创建实例        
+	 * void      
+	 * @throws
+	 */
+	private void create()
+	{
+		msgDeserialize=new ObjectSerialize<T>();
+		if(socket==null)
+		{
+			socket=new MQServer();
+			MonitorObject.getInstance().addObject(socket);
+			setAddress();
+			socket.isMQ=true;
+		}
+	}
+	/**
+	 * 
+	 * @Title: deserialize   
+	 * @Description: 反序列  
+	 * @param data
+	 * @param clazz
+	 * @return      
+	 * T      
+	 * @throws
+	 */
+	private  T deserialize(byte[] data,Class<T> clazz)
+	{
+		
+		if(ObjProtocol.toLowerCase().equals("byte"))
+		{
+		   return msgDeserialize.deserialize(data, clazz);
+		}
+		else if(ObjProtocol.toLowerCase().equals("json"))
+		{
+			String json=String.valueOf(data);
+			return msgDeserialize.deserializeJSON(json, clazz);
+		}
+		return null;
+	}
+	
+	/**
+	 * 
+	 * @Title: start   
+	 * @Description: 阻塞启用  
+	 * @param mode  处理模式
+	 * @param topic 订阅模式时使用的主题名称
+	 * void      
+	 * @throws
+	 */
+	public void start()
+	{
+		socket.start(ProcessMode.SUBPUB);
+		isStart=true;
+	}
+	/**
+	 * 
+	 * @Title: getData   
+	 * @Description: 接收数据 
+	 * @return      
+	 * byte[]      
+	 * @throws
+	 */
+	public  T getData(Class<T> clazz)
+	{
+		if(!isStart)
+		{
+			start();
+		}
+		byte[]data= socket.getData();
+		T obj=deserialize(data, clazz);
+		return obj;
+		
+	}
+	
+
+
+/**
+ * 
+ * @Title: Subscriber   
+ * @Description: 订阅数据  
+ * @param topic
+ * @return      
+ * boolean   
+ * @throws
+ */
+public boolean subscriber(String topic)
+{
+	 this.create();
+	 boolean r= socket.subscriber(topic);
+	 return r;
+}
+
+/**
+ * 
+ * @Title: subscriberData   
+ * @Description: 获取订阅的数据  
+ * @return   可能null   
+ * byte[]      
+ * @throws
+ */
+public T subscriberData(Class<T> clazz)
+{
+	 this.create();
+	  byte[]data= socket.subscriberData();
+	  T obj=deserialize(data, clazz);
+		return obj;
+}
+
+/**
+ * 
+ * @Title: cancleSubscriber   
+ * @Description: 取消订阅   
+ * @param topic
+ * @return      
+ * byte[]      
+ * @throws
+ */
+public void cancleSubscriber(String topic)
+{
+	 this.create();
+	socket.cancleSubscriber(topic);
+	
+}
+
+
+/**
+ * 
+ * @Title: isClose   
+ * @Description:  关闭状态
+ * @return      
+ * boolean      
+ * @throws
+ */
+public boolean isClose()
+{
+	if(socket!=null)
+	return socket.isClose();
+	return false;
+}
+/**
+ * 
+ * @Title: close   
+ * @Description: 关闭      
+ * void      
+ * @throws
+ */
+public void close()
+{
+	if(socket!=null)
+	{
+		socket.close();
+	}
+}
+}

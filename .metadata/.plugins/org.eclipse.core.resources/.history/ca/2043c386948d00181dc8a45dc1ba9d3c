@@ -1,0 +1,248 @@
+/**    
+ * 文件名：MsgServer.java    
+ *    
+ * 版本信息：    
+ * 日期：2018年7月8日    
+ * Copyright 足下 Corporation 2018     
+ * 版权所有    
+ *    
+ */
+package cd.jason.msgmq;
+
+
+import org.zeromq.ZContext;
+import org.zeromq.ZMQ;
+
+/**    
+ *     
+ * 项目名称：msgmq    
+ * 类名称：MsgServer    
+ * 类描述：   服务端代码
+ * 创建人：jinyu    
+ * 创建时间：2018年7月8日 下午2:26:09    
+ * 修改人：jinyu    
+ * 修改时间：2018年7月8日 下午2:26:09    
+ * 修改备注：    
+ * @version     
+ *     
+ */
+public class MsgServer {
+  private	ZContext context=null;
+	/**
+	 * 绑定地址
+	 * 也是路由地址
+	 */
+	public String srvIP="*";
+	
+	/**
+	 * 绑定端口
+	 * 也是路由端口
+	 */
+	public int port=0;
+	
+	/**
+	 * 协议
+	 */
+	public NetProtocol netProtocol=NetProtocol.tcp;
+	
+	
+	public int bufSize=128;
+	public int MsgHWM=1000;
+	private String socketaddr="";
+	private ZMQ.Socket socket=null;//数据对象
+	private  volatile boolean isClose=false;//关闭
+	public MsgServer()
+	{
+		//创建一个I/O线程的上下文
+		 context =ZMQContext.createContext();
+	}
+	
+	/**   
+	 * @Title: address   
+	 * @Description: 构建地址
+	 * @return      
+	 * String      
+	 * @throws   
+	 */
+	public String address()
+	{
+		if(socketaddr==null||socketaddr.isEmpty())
+		{
+		   StringBuffer buf=new StringBuffer();
+		   buf.append(netProtocol.name());
+		   buf.append("://");
+		   buf.append(srvIP);
+		   buf.append(":");
+		   buf.append(port);
+		   socketaddr=buf.toString();
+		}
+		return socketaddr;
+	}
+	
+	/**
+	 * 
+	 * @Title: setRsp   
+	 * @Description: 设置回复数据
+	 * @param data      
+	 * void      
+	 * @throws
+	 */
+	public void setRsp(byte[]data)
+	{
+		//this.rspData=data;
+		if(socket!=null)
+		  socket.send(data);
+	}
+	/**
+	 * 
+	 * @Title: recvice   
+	 * @Description: 接收数据  
+	 * @return      
+	 * byte[]      
+	 * @throws
+	 */
+public byte[]  recvice()
+{
+	if(socket==null)
+	{
+	   socket = context.createSocket(ZMQ.REP);  //创建一个response类型的socket，他可以接收request发送过来的请求，其实可以将其简单的理解为服务端
+	   socket.setHWM(MsgHWM);
+	   socket.setReceiveBufferSize(bufSize*1024);
+	   socket.setSendBufferSize(bufSize*1024);
+	   socket.bind(address());    //绑定端口
+	}
+	byte[] request = socket.recv();  //获取request发送过来的数据
+	return request;
+}
+
+public byte[] recviceProxy()
+{
+	
+}
+
+/**
+ * 
+ * @Title: Subscriber   
+ * @Description: 订阅数据  
+ * @param topic
+ * @return      
+ * byte[]      
+ * @throws
+ */
+public boolean subscriber(String topic)
+{
+	if(socket==null)
+	{
+		if(topic==null)
+		{
+			topic="";
+		}
+	    socket = context.createSocket(ZMQ.SUB);  //创建一个response类型的socket，他可以接收request发送过来的请求，其实可以将其简单的理解为服务端
+	    socket.setHWM(MsgHWM);
+	    socket.setReceiveBufferSize(bufSize*1024);
+	    socket.setSendBufferSize(bufSize*1024);
+	    socket.connect(this.address());
+	    System.out.println("订阅连接："+address());
+	}
+	return socket.subscribe(topic);
+}
+
+/**
+ * 
+ * @Title: subscriberData   
+ * @Description: 获取订阅时的数据  
+ * @param topic
+ * @return      
+ * byte[]      
+ * @throws
+ */
+public byte[] subscriberData()
+{
+	if(socket!=null)
+	{
+		try
+		{
+	       byte[]req= socket.recv();
+	       return req;
+		}
+		catch(Exception ex)
+		{
+			ex.printStackTrace();
+		}
+	}
+	return null;
+}
+
+/**
+ * 连接处理地址
+ * @Title: pull   
+ * @Description: 处理数据
+ * @return      
+ * byte[]      
+ * @throws
+ */
+public byte[] pull()
+{
+	if(socket==null)
+	{
+	  socket = context.createSocket(ZMQ.PULL);
+	  socket.setHWM(MsgHWM);
+	   socket.setReceiveBufferSize(bufSize*1024);
+	   socket.setSendBufferSize(bufSize*1024);
+	  socket.connect(this.address());
+	}
+	byte[] req= socket.recv();
+	return req;
+}
+
+
+/**
+ * 
+ * @Title: isClose   
+ * @Description: 是否已经关闭  
+ * @return      
+ * boolean      
+ * @throws
+ */
+public boolean isClose()
+{
+	return this.isClose;
+}
+
+
+/**
+ * 
+ * @Title: close   
+ * @Description: 关闭      
+ * void      
+ * @throws
+ */
+public void close()
+{
+	if(socket!=null)
+	{
+		socket.close();
+	}
+	this.isClose=true;
+}
+
+/**
+ * 只有数据地址可以重置
+ * @Title: reset   
+ * @Description: 重置数据地址       
+ * void      
+ * @throws
+ */
+public void reset()
+{
+	if(socket!=null)
+	{
+		socket.close();
+	}
+	socket=null;
+}
+public void test()
+{
+	System.out.println("2");
+}
+}

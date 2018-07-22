@@ -1,0 +1,14 @@
+package cd.jason.Client;
+
+/**
+ * Hello world!
+ *
+ */
+public class App 
+{
+    public static void main( String[] args )
+    {
+    	MsgServer server=new MsgServer();
+    	
+    }
+}

@@ -1,0 +1,182 @@
+/**    
+ * 文件名：DataConfig.java    
+ *    
+ * 版本信息：    
+ * 日期：2018年7月20日    
+ * Copyright 足下 Corporation 2018     
+ * 版权所有    
+ *    
+ */
+package cd.jason.config;
+
+import java.io.File;
+import java.io.IOException;
+import java.io.RandomAccessFile;
+import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
+import java.text.DecimalFormat;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Enumeration;
+import java.util.concurrent.atomic.AtomicInteger;
+/**    
+ *     
+ * 项目名称：msgmq    
+ * 类名称：DataConfig    
+ * 类描述：    一些公共信息
+ * 创建人：jinyu    
+ * 创建时间：2018年7月20日 下午3:41:34    
+ * 修改人：jinyu    
+ * 修改时间：2018年7月20日 下午3:41:34    
+ * 修改备注：    
+ * @version     
+ *     
+ */
+public class DataConfig {
+	
+	/**
+	 *  更新订阅发布时间
+	 */
+	 public  static volatile long checkTime=20000;//ms
+	 
+	 /**
+	  * 启用存储重发功能
+	  */
+	 public  static volatile boolean isStore=true;
+	 
+	 /**
+	  *  添加包ID
+	  */
+	 public  static volatile boolean isAddFlage=true;
+	 private static String ip="";
+	 private  static String processID="";
+	 private static AtomicInteger rID=new AtomicInteger(0);
+	 private static SimpleDateFormat formats= new SimpleDateFormat("ddHHmmss");
+	 private static DecimalFormat df=new DecimalFormat("0000000");
+	 
+	 /**
+	  * 
+	  * @Title: getLocalHostLANAddress   
+	  * @Description: 获取Ip
+	  * @return      
+	  * String      
+	  * @throws
+	  */
+	 private static String getLocalHostLANAddress()  {
+		    try {
+		        InetAddress candidateAddress = null;
+		        // 遍历所有的网络接口
+		        for (Enumeration<?> ifaces = NetworkInterface.getNetworkInterfaces(); ifaces.hasMoreElements(); ) {
+		            NetworkInterface iface = (NetworkInterface) ifaces.nextElement();
+		            // 在所有的接口下再遍历IP
+		            for (Enumeration<?> inetAddrs = iface.getInetAddresses(); inetAddrs.hasMoreElements(); ) {
+		                InetAddress inetAddr = (InetAddress) inetAddrs.nextElement();
+		                if (!inetAddr.isLoopbackAddress()) {// 排除loopback类型地址
+		                    if (inetAddr.isSiteLocalAddress()) {
+		                        // 如果是site-local地址，就是它了
+		                        return inetAddr.getHostAddress().toString();
+		                    } else if (candidateAddress == null) {
+		                        // site-local类型的地址未被发现，先记录候选地址
+		                        candidateAddress = inetAddr;
+		                    }
+		                }
+		            }
+		        }
+		        if (candidateAddress != null) {
+		            return candidateAddress.getHostAddress().toString();
+		        }
+		        // 如果没有发现 non-loopback地址.只能用最次选的方案
+		        InetAddress jdkSuppliedAddress = InetAddress.getLocalHost();
+		        return jdkSuppliedAddress.getHostAddress().toString();
+		    } catch (Exception e) {
+		        e.printStackTrace();
+		    }
+		    return null;
+		}
+	 
+	 private static  String getProcessID()
+	 {
+		 String path= System.getProperty("user.dir");
+		 String file=path+"id.dat";
+		 RandomAccessFile raf=null;
+		 String pid="";
+		 File f=new File(file);
+		 if(!f.exists())
+		 {
+			 try {
+				f.createNewFile();
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+		 }
+		try {
+			  raf = new RandomAccessFile(file, "rw");
+			  FileChannel fc = raf.getChannel();
+			  FileLock fl = fc.lock();
+			  String id= raf.readLine();
+			  int temp=0;
+			  if(id==null||id.trim().isEmpty())
+			  {
+				  temp=1;
+			  }
+			  raf.write(temp+1);
+			  fl.close();
+			  fc.close();
+			  raf.close();
+			  pid=String.valueOf(temp+1);
+		} catch (Exception e) {
+			
+			e.printStackTrace();
+		}
+		return pid;
+		
+	 }
+	 /**
+	  * 
+	  * @Title: getID   
+	  * @Description: 产生ID  
+	  * @return      
+	  * String      
+	  * @throws
+	  */
+	 public static String getID()
+	 {
+		 if(ip.isEmpty())
+		 {
+			 ip=getLocalHostLANAddress();
+		 }
+		 if(processID.isEmpty())
+		 {
+			 processID= getProcessID();
+		 }
+		 StringBuffer buf=new StringBuffer();
+		 buf.append(ip+"|");
+		 buf.append(processID+"|");
+		 buf.append(formats.format(new Date()));
+		 buf.append(df.format(rID.getAndIncrement()%1000000));
+		 return buf.toString();
+	 }
+	 
+	 /**
+	  * 
+	  * @Title: getIDBytes   
+	  * @Description: 
+	  * @return      
+	  * byte[]      
+	  * @throws
+	  */
+	 public static byte[] getIDBytes()
+	 {
+		 if(isAddFlage)
+		 {
+		   return getID().getBytes();
+		 }
+		 else
+		 {
+			 
+		 }
+		
+	 }
+}

@@ -1,0 +1,16 @@
+package cd.jason.Client;
+
+import cd.jason.msgmq.MsgServer;
+
+/**
+ * Hello world!
+ *
+ */
+public class App 
+{
+    public static void main( String[] args )
+    {
+    	MsgServer server=new MsgServer();
+    	
+    }
+}

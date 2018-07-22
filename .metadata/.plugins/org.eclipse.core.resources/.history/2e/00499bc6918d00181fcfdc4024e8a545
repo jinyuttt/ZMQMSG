@@ -1,0 +1,134 @@
+package cd.jason.MQCenter;
+
+import java.io.File;
+import java.io.IOException;
+import java.net.URL;
+import java.net.URLDecoder;
+
+import cd.jason.log.LogFactory;
+import cd.jason.msgmq.MsgProxyBridge;
+import cd.jason.msgmq.ZMQContext;
+
+/**
+ * Hello world!
+ *
+ */
+public class App 
+{
+    public static void main( String[] args )
+    {
+    	String realPath = initPath();
+    	AppConfig.appPath=realPath;
+    	AppConfig.init();
+    	final MsgProxyBridge server=new MsgProxyBridge();
+    	  NodeServer nodeServer=new NodeServer(server);
+          if(AppConfig.iscascaded)
+          {
+             //开启节点信息
+             nodeServer.startThread();
+          }
+    	Thread start=new Thread(new Runnable() {
+			public void run() {
+		    	server.srvIP="*";
+		    	server.backIP="*";
+		    	server.port=AppConfig.frontPort;
+		    	server.backPort=AppConfig.endPort;
+		    	//
+		    	server.cascadedIP="*";
+		    	server.cascadedPort=AppConfig.cascadedPort;
+		    	//
+		    	System.out.println("启动本节点");
+     	    	server.zmq_pub_sub();
+     	    	
+			}
+    		
+    	});
+    	start.setDaemon(true);
+    	start.setName("启动中心");
+        start.start();
+        
+        //
+        Thread startslf=new Thread(new Runnable() {
+			public void run() {
+				try {
+					Thread.sleep(1000);
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+				}
+		    	System.out.println("启动本节点级联发布");
+		    	 String logmsg="本节点全数据地址："+server.cascadedAddr();
+		    	 System.out.println(logmsg);
+		    	 LogFactory.getInstance().addInfo(logmsg);
+		    	server.zmq_pub_sub_self();
+		    	
+			}
+    		
+    	});
+        startslf.setDaemon(true);
+        startslf.setName("级联发送");
+       // startslf.start();
+        //
+        //
+        Thread startNode=new Thread(new Runnable() {
+			public void run() {
+				try {
+					Thread.sleep(1000);
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+				}
+		        server.cascadedNodeIP=AppConfig.cascadedNodeIP;
+		    	server.cascadedNodePort=AppConfig.cascadedNodePort;
+		    	System.out.println("启动本节点级联订阅");
+		    	 String logmsg="本节点订阅的级联地址："+server.cascadedNodeAddr();
+		    	 System.out.println(logmsg);
+		    	 LogFactory.getInstance().addInfo(logmsg);
+		    	 server.zmq_pub_sub_kz();
+		    	
+			}
+    		
+    	});
+        startNode.setDaemon(true);
+        startNode.setName("级联订阅中心");
+       // startNode.start();
+      
+        //
+    	System.out.println("启动");
+    	try {
+			System.in.read();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+    	nodeServer.close();
+    	server.close();
+    	ZMQContext.close();
+    }
+    
+    /**
+     * 
+     * @Title: initPath   
+     * @Description:获取路径 
+     * @return      
+     * String      
+     * @throws
+     */
+    private static String initPath()
+    {
+    	URL url = App.class.getProtectionDomain().getCodeSource().getLocation();
+		String filePath = null;
+		try {
+			filePath = URLDecoder.decode(url.getPath(), "utf-8");// 转化为utf-8编码
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		if (filePath.endsWith(".jar")) {// 可执行jar包运行的结果里包含".jar"
+			// 截取路径中的jar包名
+			filePath = filePath.substring(0, filePath.lastIndexOf("/") + 1);
+		}
+		
+		File file = new File(filePath);
+		
+		 filePath = file.getAbsolutePath();
+		return filePath;
+
+    }
+}

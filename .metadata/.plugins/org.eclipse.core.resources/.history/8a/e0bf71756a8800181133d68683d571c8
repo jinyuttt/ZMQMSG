@@ -1,0 +1,569 @@
+/**    
+ * 文件名：NodeServer.java    
+ *    
+ * 版本信息：    
+ * 日期：2018年7月15日    
+ * Copyright 足下 Corporation 2018     
+ * 版权所有    
+ *    
+ */
+package cd.jason.MQCenter;
+
+import java.util.HashMap;
+import java.util.Iterator;
+
+import cd.jason.log.LogFactory;
+import cd.jason.msgmq.MsgClient;
+import cd.jason.msgmq.MsgProxyBridge;
+import cd.jason.msgmq.MsgServer;
+import cd.jason.msgmq.NetProtocol;
+
+/**    
+ *     
+ * 项目名称：MQCenter    
+ * 类名称：NodeServer    
+ * 类描述：    获取节点信息 传递数据
+ * 创建人：jinyu    
+ * 创建时间：2018年7月15日 上午12:33:30    
+ * 修改人：jinyu    
+ * 修改时间：2018年7月15日 上午12:33:30    
+ * 修改备注：    
+ * @version     
+ *     
+ */
+public class NodeServer {
+private HashMap<String,String> subaddr=new HashMap<String,String>();
+private HashMap<String,String> pubaddr=new HashMap<String,String>();
+private HashMap<String,String> reqaddr=new HashMap<String,String>();
+private MsgProxyBridge nodeServer=null;
+MsgServer server=new MsgServer();
+private boolean isStop=false;
+private boolean reqSuecess=false;//修改级联事是否获取到级联全数据地址
+private Thread reqAllData=null;//更新级联全数据
+public NodeServer(MsgProxyBridge server)
+{
+	nodeServer=server;
+}
+
+/**
+ * 
+ * @Title: startThread   
+ * @Description: 开启级联关系及注册         
+ * void      
+ * @throws
+ */
+public void startThread()
+{
+	Thread webThread=new Thread(new Runnable() {
+		public void run() {
+			try {
+				Thread.sleep(2000);
+			} catch (InterruptedException e) {
+			
+				e.printStackTrace();
+			}
+			start();
+		}
+		
+	});
+	webThread.setDaemon(true);
+	webThread.setName("nodeServer");
+	webThread.start();
+	Thread regThread=new Thread(new Runnable() {
+
+		public void run() {
+			
+			while(!isStop)
+			{
+				//定时10s向级联发送本节点信息
+				sendAddr(false);//
+				sendMonitor();//
+			   try {
+				Thread.sleep(10000);
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
+			}
+		}
+		
+	});
+	regThread.setDaemon(true);
+	regThread.setName("nodeAddr");
+	regThread.start();
+}
+/**
+ * 
+ * @Title: start   
+ * @Description: 接收节点或者客户端请求        
+ * void      
+ * @throws
+ */
+public  void start()
+{
+	
+	server.srvIP="*";
+	server.port=AppConfig.cascadedPort+1;
+	if(AppConfig.reqPort!=0)
+	{
+		//说明是0
+		server.port=AppConfig.reqPort;
+	}
+	else
+	{
+		AppConfig.reqPort=server.port;
+	}
+	 String logmsg="";
+	 String webAddr=server.address();
+	 logmsg="本节点服务地址："+webAddr;
+	 System.out.println(logmsg);
+	 LogFactory.getInstance().addInfo(logmsg);
+	 while(true)
+	 {
+		 try
+		 {
+	byte[] data=server.recvice();
+	String msg=new String(data);
+	System.out.println("服务地址收到信息！"+msg);
+	if(msg.startsWith("sub")||msg.startsWith("pub"))
+	{
+		
+		//客户端获取本节点地址发布订阅地址
+		String addr="";
+		if(msg.startsWith("sub"))
+		{
+			addr=nodeServer.backAddr();
+			//
+			String ip=Tool.getLocalHostLANAddress();
+			if(addr.contains("*:"))
+			{
+				addr=addr.replace("*:", ip+":");
+			}
+		}
+		else
+		{
+			addr=nodeServer.address();
+		}
+		server.setRsp(addr.getBytes());
+		logmsg="收到客户端请求订阅发布地址,客户端再做切换";
+	    LogFactory.getInstance().addInfo(logmsg);
+	}
+	else if(msg.startsWith("rep"))
+	{
+		//级联节点发送的服务地址
+	    String reqAddr=msg.substring(4).trim();
+	    reqaddr.put(reqAddr, "");
+	    server.setRsp("recviced".getBytes());
+	    logmsg="收到级联节点定时上报的服务地址信息";
+	    LogFactory.getInstance().addDebug(logmsg);
+	}
+	else if(msg.startsWith("req"))
+	{
+		//客户端获取级联服务地址
+		StringBuffer buf=new StringBuffer();
+		//
+		Iterator<String> keys=reqaddr.keySet().iterator();
+		while(keys.hasNext())
+		{
+			buf.append(keys.next());
+			buf.append(" ");
+		}
+		server.setRsp(buf.toString().getBytes());
+		logmsg="收到客户端定时请求级联服务地址信息";
+		LogFactory.getInstance().addDebug(logmsg);
+	}
+	else if(msg.startsWith("node"))
+	{
+		//通知级联地址
+		String[] addr=msg.substring(4).trim().split(" ");
+		if(addr.length==2)
+		{
+			if(addr[0].equals("sub"))
+			{
+				subaddr.put(addr[1], "");
+			}
+			if(addr[0].equals("pub"))
+			{
+				pubaddr.put(addr[1], "");
+			}
+		}
+		server.setRsp("recviced".getBytes());
+		logmsg="收到级联节点上报的订阅发布地址，该信息当前设计没有使用";
+		LogFactory.getInstance().addDebug(logmsg);
+	}
+	else if(msg.startsWith("cancel"))
+	{
+		//取消级联
+		String[] addr=msg.split(" ");
+		if(addr.length==2)
+		{
+			if(addr[0].equals("cancel"))
+			{
+				subaddr.remove(addr[1]);
+				pubaddr.remove(addr[1]);
+				reqaddr.remove(addr[1]);
+			}
+		}
+		server.setRsp("recviced".getBytes());
+		logmsg="收到级联节点取消级联关系的地址信息："+addr[1];
+		LogFactory.getInstance().addInfo(logmsg);
+	}
+	else if(msg.startsWith("monitor"))
+	{
+		//接收通知监视IP，端口修改以及修改节点名称
+		String[] addr=msg.split(" ");
+		if(addr.length==2)
+		{
+			if(!addr[0].isEmpty())
+			{
+				AppConfig.nodeName=addr[0];
+			}
+			String[] monitorAddr=addr[1].split(":");
+			if(monitorAddr.length==2)
+			{
+				AppConfig.monitorAddr=monitorAddr[0];
+				AppConfig.monitorPort=Integer.valueOf(monitorAddr[1]);
+			}
+		}
+		server.setRsp("recviced".getBytes());
+		StringBuffer buf=new StringBuffer();
+		buf.append("收到监视管理的信息:");
+		buf.append("\r\n");
+		buf.append("本节点名称："+AppConfig.nodeName);
+		buf.append("\r\n");
+		buf.append("监视管理的IP："+AppConfig.monitorAddr);
+		buf.append("\r\n");
+		buf.append("监视管理的端口："+AppConfig.monitorPort);
+		buf.append("\r\n");
+		logmsg=buf.toString();
+		buf.setLength(0);
+		LogFactory.getInstance().addInfo(logmsg);
+	}
+	else if(msg.startsWith("control"))
+	{
+		//创建新的级联关系，该请求来自监控管理
+		    logmsg="收到级联关系修改信息";
+		    LogFactory.getInstance().addInfo(logmsg);
+		String[] addr=msg.split(" ");
+		int num=0;
+		if(addr.length==2)
+		{
+			//先取消原节点，当前不允许建立多个级联
+			 logmsg="取消原级联关系";
+		     LogFactory.getInstance().addInfo(logmsg);
+			while(!sendAddr(true))
+			{
+				try {
+					Thread.sleep(100);
+					num++;
+					if(num>10)
+					{
+						logmsg="取消原级联关系失败";
+						LogFactory.getInstance().addInfo(logmsg);
+						break;
+					}
+				} catch (InterruptedException e) {
+					
+					e.printStackTrace();
+				}
+			}
+			//修改级联节点服务地址
+			String cascaded=addr[1].trim();
+			String netaddr=aysAddr(cascaded);
+			//取出协议
+			 String[]netaddrs=netaddr.split(";");
+	          if(netaddrs.length==3)
+	          {
+	           AppConfig.cascadedNodeNet=netaddrs[0];
+	           AppConfig.cascadedNodeReqIP=netaddrs[1];
+	           AppConfig.cascadedNodeReqPort=Integer.valueOf(netaddrs[2]);
+	           reqSuecess=false;
+	           //
+	           StringBuffer buf=new StringBuffer();
+	   		   buf.append("收到监视管理控制,修改新的级联地址信息:");
+	   		   buf.append("\r\n");
+	   		   buf.append("新的级联服务IP："+AppConfig.cascadedNodeReqIP);
+	   		   buf.append("\r\n");
+	   		   buf.append("新的级联服务端口："+AppConfig.cascadedNodeReqPort);
+	   		   buf.append("\r\n");
+	       	   buf.append("新的级联服务协议："+AppConfig.cascadedNodeNet);
+	   		   buf.append("\r\n");
+	   		   logmsg=buf.toString();
+	   		   buf.setLength(0);
+			   LogFactory.getInstance().addInfo(logmsg);
+	          }
+			 sendAddr(false);
+			 reqDataAddr();
+			 logmsg="正在请求新级联的全数据地址";
+			 LogFactory.getInstance().addInfo(logmsg);
+		}
+		server.setRsp("recviced".getBytes());
+		System.out.println("修改级联");
+	}
+	else if(msg.startsWith("rnodepub"))
+	{
+		//请求本节点级联地址
+		if(nodeServer.cascadedIP.equals("*"))
+		{
+			nodeServer.cascadedIP=Tool.getLocalHostLANAddress();
+		}
+		server.setRsp(nodeServer.cascadedAddr().getBytes());
+		System.out.println("修改级联");
+	}
+	else
+	{
+		//其它终结内容
+		server.setRsp("recviced".getBytes());
+	}
+  }
+  catch(Exception ex)
+		 {
+			 LogFactory.getInstance().addError(ex.getLocalizedMessage());
+		 }
+	 }
+}
+
+/**
+ * 
+ * @Title: ReqDataAddr   
+ * @Description: 获取级联全数据地址        
+ * void      
+ * @throws
+ */
+public void reqDataAddr()
+{
+	if(reqAllData!=null)
+	{
+		return;
+	}
+	reqAllData=new Thread(new Runnable() {
+		public void run() {
+			while(true)
+			{
+			 if(!reqSuecess)
+			 {
+			    MsgClient client=new MsgClient();
+			    client.srvIP=AppConfig.cascadedNodeReqIP;
+			    client.port=AppConfig.cascadedNodeReqPort;
+			    byte[] data="rnodepub".getBytes();
+		        byte[]rec= client.sendMsg(data);
+		    	if(rec!=null&&rec.length>0)
+		    	{
+		    	  String addr=new String(rec);
+		          String netaddr= 	aysAddr(addr);
+		          String[]netaddrs=netaddr.split(";");
+		          if(netaddrs.length==3)
+		          {
+		            AppConfig.cascadedNodeNet=netaddrs[0];
+		            AppConfig.cascadedNodeIP=netaddrs[1];
+		            AppConfig.cascadedNodePort=Integer.valueOf(netaddrs[2]);
+		            reqSuecess=true;
+		             String logmsg="请求新级联的全数据地址成功";
+					 LogFactory.getInstance().addInfo(logmsg);
+		          }
+		    	}
+		    	client.close();
+			}
+			if(reqSuecess)
+			{
+				       Thread startNode=new Thread(new Runnable() {
+						public void run() {
+							try {
+								Thread.sleep(1000);
+							} catch (InterruptedException e) {
+								e.printStackTrace();
+							}
+							nodeServer.cascadedNodeIP=AppConfig.cascadedNodeIP;
+							nodeServer.cascadedNodePort=AppConfig.cascadedNodePort;
+					    	System.out.println("启动本节点级联订阅");
+					    	String logmsg="更新级联全数据订阅";
+							LogFactory.getInstance().addInfo(logmsg);
+							nodeServer.zmq_pub_sub_kz();
+					    	
+						}
+			    		
+			    	});
+			        startNode.setDaemon(true);
+			        startNode.setName("更新级联数据订阅");
+			        if(!startNode.isAlive())
+			        {
+			          startNode.start();
+			        }
+			        reqAllData=null;
+			        break;
+			}
+			}
+		}
+		
+	});
+	reqAllData.setDaemon(true);
+	reqAllData.setName("allData");
+	if(!reqAllData.isAlive())
+	{
+	     reqAllData.start();
+	}
+	
+}
+
+/**
+ * 
+ * @Title: aysAddr   
+ * @Description: 解析地址 
+ * @param addr
+ * @return      
+ * String      
+ * @throws
+ */
+private String aysAddr(String addr)
+{
+	StringBuffer buf=new StringBuffer();
+	int index=addr.indexOf(":");
+	buf.append(addr.substring(0, index));
+	buf.append(";");
+	String tmp=addr.substring(index+2);
+	String[] caddr=tmp.split(":");
+	buf.append(caddr[0]);
+	buf.append(";");
+	buf.append(caddr[1]);
+	return buf.toString();
+}
+/**
+ * 
+ * @Title: sendAddr   
+ * @Description: 向级联发送本节点订阅地址       
+ * void      
+ * @throws
+ */
+public boolean sendAddr(boolean isCance)
+{
+	//将本节点地址告诉级联节点，同时也是告知建立级联关系
+  if(AppConfig.cascadedNodePort!=0)
+  {
+	  MsgClient client=new MsgClient();
+	  client.srvIP=AppConfig.cascadedNodeReqIP;
+	  client.port=AppConfig.cascadedNodeReqPort;
+	  client.MsgHWM=1;
+	  String flage="";
+	  if(isCance)
+	  {
+		  flage="cancel ";
+	  }
+	  else
+	  {
+		  flage="node sub ";
+	  }
+	  byte[] data=(flage+nodeServer.backAddr()).getBytes();
+	  byte[] rec= client.sendMsg(data);
+	  if(rec==null||rec.length==0)
+	  {
+		  //说明节点异常；
+		  client.close();
+		  return false;
+	  }
+	  else
+	  {
+		  if(!isCance)
+		  {
+			  flage="node pub ";
+		  }
+		  data=(flage+nodeServer.address()).getBytes();
+		  client.sendMoreMsg(data);
+	  }
+	  //发送本节点服务地址
+	  if(!isCance)
+	  {
+	   String reqip=server.srvIP;
+	   int reqPort=server.port;
+	   if(reqip.equals("*"))
+	   {
+		   reqip=Tool.getLocalHostLANAddress();
+	   }
+	   String reqaddr= reqaddress(reqip,reqPort,server.netProtocol);
+	   data=("rep "+reqaddr).getBytes();
+	   client.sendMoreMsg(data);
+	  }
+	  else
+	  {
+		  //取消
+		   String reqip=server.srvIP;
+		   int reqPort=server.port;
+		   if(reqip.equals("*"))
+		   {
+			   reqip=Tool.getLocalHostLANAddress();
+		   }
+		   String reqaddr= reqaddress(reqip,reqPort,server.netProtocol);
+		   data=("cancel "+reqaddr).getBytes();
+		   client.sendMoreMsg(data);
+	  }
+	  client.sendMsg("END");
+	  client.close();
+  }
+  return true;
+}
+
+/**
+ * 
+ * @Title: reqaddress   
+ * @Description: 构造地址  
+ * @param ip
+ * @param port
+ * @param netProtocol
+ * @return      
+ * String      
+ * @throws
+ */
+public String reqaddress(String ip,int port,NetProtocol netProtocol)
+{
+	
+	   StringBuffer buf=new StringBuffer();
+	   buf.append(netProtocol.name());
+	   buf.append("://");
+	   buf.append(ip);
+	   buf.append(":");
+	   buf.append(port);
+	  return buf.toString();
+	
+}
+/**
+ * 
+ * @Title: sendMonitor   
+ * @Description: 向监视地址发送数据        
+ * void      
+ * @throws
+ */
+public void sendMonitor()
+{
+	//告诉监视段本节点的名称，IP,已经请求端口
+	if(AppConfig.monitorPort!=0)
+	{
+	try
+	{
+	  MsgClient client=new MsgClient();
+	  client.srvIP=AppConfig.monitorAddr;
+	  client.port=AppConfig.monitorPort;
+	  client.MsgHWM=1;
+	  client.senRecTimeOut(1000);
+	  byte[] data=(AppConfig.nodeName+" "+AppConfig.reqIp+":"+AppConfig.reqPort).getBytes();
+	  client.sendMsg(data);
+	  client.close();
+	}
+	catch(Exception ex)
+	{
+		LogFactory.getInstance().addError(ex.getMessage());
+	}
+	}
+	
+}
+
+/**
+ * 
+ * @Title: close   
+ * @Description: 关闭         
+ * void      
+ * @throws
+ */
+public void close()
+{
+	isStop=true;
+	server.close();
+}
+}

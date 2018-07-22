@@ -1,0 +1,672 @@
+/**    
+ * 文件名：MonitorObject.java    
+ *    
+ * 版本信息：    
+ * 日期：2018年7月9日    
+ * Copyright 足下 Corporation 2018     
+ * 版权所有    
+ *    
+ */
+package cd.jason.msg;
+
+import java.lang.ref.ReferenceQueue;
+import java.lang.ref.WeakReference;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.WeakHashMap;
+
+import cd.jason.cache.DataCache;
+import cd.jason.config.DataConfig;
+import cd.jason.log.LogFactory;
+import cd.jason.msgmq.MsgClient;
+import cd.jason.msgmq.MsgServer;
+import cd.jason.msgmq.NetProtocol;
+
+/**    
+ *     
+ * 项目名称：msgmq    
+ * 类名称：MonitorObject    
+ * 类描述：    管理回收对象
+ * 创建人：jinyu    
+ * 创建时间：2018年7月9日 上午2:54:30    
+ * 修改人：jinyu    
+ * 修改时间：2018年7月9日 上午2:54:30    
+ * 修改备注：    
+ * @version     
+ *     
+ */
+public class MonitorObject {
+	 private final ReferenceQueue<Object> q = new ReferenceQueue<Object>();
+	 private Map<Object, Object> map = new HashMap<Object, Object>();
+	 private static MonitorObject instance=null;
+	 private WeakHashMap<MQClient,MQCenterInfo> mapClient=new  WeakHashMap<MQClient,MQCenterInfo>();
+	 private WeakHashMap<MQServer,MQCenterInfo> mapServer=new  WeakHashMap<MQServer,MQCenterInfo>();
+	
+	 /**
+	  * 是否监测发布订阅服务器状态，重新连接级联
+	  */
+	 public  volatile boolean ischeckUpdate=false;
+	 
+	 /**
+	  * 启用级联切换时，监测服务节点的时间间隔(ms)
+	  * 建议和服务节点彼此监测一致（节点发送服务地址的时间间隔）
+	  * 默认20s.以统一时间为准
+	  * 
+	  */
+	
+	 public static MonitorObject getInstance()
+	 {
+		 if(instance==null)
+		 {
+			 instance=new MonitorObject();
+		 }
+		 return instance;
+	 }
+	 
+	 /**
+	  * 
+	  * 创建一个新的实例 MonitorObject.    
+	  *
+	  */
+	public MonitorObject()
+	{
+		start();
+		startCheck();
+	}
+	
+	/**
+	 * 
+	 * @Title: add   
+	 * @Description: 添加订阅发布对象
+	 * @param obj      
+	 * void      
+	 * @throws
+	 */
+	public void addObject(Object obj)
+	{
+		 Object value = new Object();
+	     WeakReference<Object> weakReference = new WeakReference<Object>(obj,q);
+		 map.put(weakReference, value);
+	}
+	
+	/**
+	 * 
+	 * @Title: add   
+	 * @Description:  发布对象
+	 * @param client      
+	 * void      
+	 * @throws
+	 */
+	public void add(MQClient client)
+	{
+		MQCenterInfo value=new MQCenterInfo();
+		value.srcreqIP=client.srcreqIP;
+		value.srcreqPort=client.srcreqPort;
+		value.srcreqProtocol=client.srcreqProtocol;
+		if(client.srcreqIP.equals("127.0.0.1")||client.srcreqIP.equals("*"))
+		{
+			client.srcreqIP=client.srvIP;//修改为发布IP;
+		}
+		mapClient.put(client, value);
+	}
+	
+	/**
+	 * 
+	 * @Title: add   
+	 * @Description: 订阅对象
+	 * @param client      
+	 * void      
+	 * @throws
+	 */
+	public void add(MQServer client)
+	{
+		MQCenterInfo value=new MQCenterInfo();
+		value.srcreqIP=client.srcreqIP;
+		value.srcreqPort=client.srcreqPort;
+		value.srcreqProtocol=client.srcreqProtocol;
+		if(client.srcreqIP.equals("127.0.0.1")||client.srcreqIP.equals("*"))
+		{
+			client.srcreqIP=client.srvIP;//修改为发布IP;
+		}
+		mapServer.put(client, value);
+	}
+	
+	/**
+	 * 
+	 * @Title: startCheck   
+	 * @Description: 监测级联更新        
+	 * void      
+	 * @throws
+	 */
+	private void startCheck()
+	{
+		Thread check=new Thread(new Runnable() {
+
+			public void run() {
+				while(true)
+				{
+					try {
+						Thread.sleep(DataConfig.checkTime);
+					} catch (InterruptedException e) {
+						
+						e.printStackTrace();
+					}
+				  checksub();
+				  checkpub();
+				  if(!ischeckUpdate)
+				  {
+					  //如果没有启用，则时间延长1分钟
+					  //不关闭，以防后续再使用
+					  
+					  try {
+							Thread.sleep(60*10000);
+						} catch (InterruptedException e) {
+							
+							e.printStackTrace();
+						}
+				  }
+				}
+			}
+			
+		});
+		check.setDaemon(true);
+		check.setName("checkUpdateCenter");
+		if(!check.isAlive())
+		{
+		check.start();
+		}
+	}
+	
+	/**
+	 * 
+	 * @Title: checksub   
+	 * @Description:监测订阅服务节点        
+	 * void      
+	 * @throws
+	 */
+	private void checksub()
+	{
+		mapServer.size();
+		Iterator<Entry<MQServer, MQCenterInfo>> item=mapServer.entrySet().iterator();
+		int size=0;
+		while(item.hasNext())
+		{
+			Entry<MQServer, MQCenterInfo> kv=item.next();
+			MQCenterInfo info = kv.getValue();
+			MQServer c=kv.getKey();
+			if(c.isClose())
+			{
+				item.remove();
+			}
+			if(!this.ischeckUpdate)
+			{
+				//如果不监测，则遍历即可，消除对象；
+				continue;
+			}
+			if(info.srcreqPort==0)
+			{
+				//没有使用正确的服务地址；
+				continue;
+			}
+			//
+			MsgClient client=new MsgClient();
+			client.srvIP=info.srcreqIP;
+			client.port=info.srcreqPort;
+			client.senRecTimeOut(3000);
+			byte[] data="req".getBytes();
+			System.out.println("sub1 发送 req");
+			byte[]rec=client.sendMsg(data);//请求级联的服务地址
+			client.close();
+			if(rec==null||rec.length==0)
+			{
+				//异常；
+				if(info.isCacs)
+				{
+					//已经启用了；
+					MsgClient clientc=new MsgClient();
+					clientc.srvIP=info.reqIP;
+					clientc.port=info.reqPort;
+					client.netProtocol=info.reqProtocol;
+					clientc.senRecTimeOut(3000);
+					System.out.println("sub2 发送 req");
+					rec=clientc.sendMsg(data);
+					clientc.close();
+					if(rec==null||rec.length==0)
+					{
+						//再次异常；获取其它级联
+						if(!info.lstAddrs.isEmpty())
+						{
+						    size=info.lstAddrs.size();
+							byte[] param="sub".getBytes();
+							for(int j=0;j<size;j++)
+							{
+								String caddr=info.lstAddrs.get(j);
+								MsgClient clientcc=new MsgClient();
+								NetAddr addr=info.aysAddr(caddr);
+								clientcc.srvIP=addr.ip;
+								clientcc.port=addr.port;
+								clientcc.netProtocol=NetProtocol.valueOf(addr.net);
+								clientcc.senRecTimeOut(3000);
+								rec=clientcc.sendMsg(param);//获取发布地址
+								clientcc.close();
+								if(rec!=null&&rec.length>0)
+								{
+									String  subAddr=new String(rec);//订阅地址；
+									 NetAddr subnet= info.aysAddr(subAddr);
+									//重新订阅
+									c.srvIP=subnet.ip;
+									c.port=subnet.port;
+									c.netProtocol=NetProtocol.valueOf(subnet.net);
+									c.update();
+									//请求地址更新
+									info.reqIP=addr.ip;
+									info.reqPort=addr.port;
+									info.reqProtocol=NetProtocol.valueOf(addr.net);
+									info.isCacs=true;//已经启动级联
+									String msg="切换订阅地址："+subnet.ip+","+subnet.port;
+									LogFactory.getInstance().addInfo(msg);
+								}
+								
+							}
+						}
+						
+					}
+					else
+					{
+						//没有异常，则获取服务地址
+						String  reqLstAddr=new String(rec);//发布地址；
+						 //
+						String[] reqlst=reqLstAddr.split(" ");
+						if(reqlst!=null)
+						{
+							info.lstAddrs.clear();
+							if(!reqLstAddr.equals("recviced"))
+							{
+							  for(int k=0;k<reqlst.length;k++)
+							  {
+							    info.lstAddrs.add(reqlst[k]);//该节点的级联服务地址；
+							    String msg="收到级联服务地址："+reqlst[k];
+								LogFactory.getInstance().addDebug(msg);
+							   }
+							}
+						}
+						
+					}
+				}
+				else
+				{
+					//还没有启用级联的服务节点，直接查找级联节点
+					if(!info.lstAddrs.isEmpty())
+					{
+						size=info.lstAddrs.size();
+						byte[] param="sub".getBytes();
+						for(int j=0;j<size;j++)
+						{
+							String caddr=info.lstAddrs.get(j);
+							MsgClient clientcc=new MsgClient();
+							NetAddr addr=info.aysAddr(caddr);
+							clientcc.srvIP=addr.ip;
+							clientcc.port=addr.port;
+							clientcc.netProtocol=NetProtocol.valueOf(addr.net);
+							clientcc.senRecTimeOut(3000);
+							clientcc.close();
+							rec=clientcc.sendMsg(param);//获取发布地址
+							clientcc.close();
+							if(rec!=null&&rec.length>0)
+							{
+								 String  subAddr=new String(rec);//发布地址；
+								 NetAddr subnet= info.aysAddr(subAddr);
+								//重新订阅
+								c.srvIP=subnet.ip;
+								c.port=subnet.port;
+								c.netProtocol=NetProtocol.valueOf(subnet.net);
+								c.update();
+								//请求地址更新
+								info.reqIP=addr.ip;
+								info.reqPort=addr.port;
+								info.reqProtocol=NetProtocol.valueOf(addr.net);
+								info.isCacs=true;//已经启动级联
+								String msg="切换订阅地址："+subnet.ip+","+subnet.port;
+								LogFactory.getInstance().addInfo(msg);
+								System.out.println(msg);
+							}
+						
+						}
+					}
+					else
+					{
+						String msg="没有级联地址，不能切换";
+						LogFactory.getInstance().addInfo(msg);
+						System.out.println(msg);
+					}
+				}
+			}
+			else
+			{
+				//正常，获取最新的级联服务地址；
+				//没有异常，则获取服务地址
+				String  reqLstAddr=new String(rec);//发布地址；
+				 //
+				String[] reqlst=reqLstAddr.split(" ");
+				if(reqlst!=null)
+				{
+					info.lstAddrs.clear();
+					if(!reqLstAddr.equals("recviced"))
+					{
+					  for(int k=0;k<reqlst.length;k++)
+					  {
+					  info.lstAddrs.add(reqlst[k]);//该节点的级联服务地址；
+					  String msg="收到级联服务地址："+reqlst[k];
+					  LogFactory.getInstance().addDebug(msg);
+					  }
+					}
+				}
+				if(info.isCacs)
+				{
+					//重置节点地址
+					//向原服务地址请求订阅地址
+					 byte[] param="sub".getBytes();
+					 MsgClient clientcc=new MsgClient();
+					 clientcc.srvIP=info.srcreqIP;
+					 clientcc.port=info.srcreqPort;
+					 clientcc.netProtocol=info.srcreqProtocol;
+					 clientcc.senRecTimeOut(3000);
+					 rec=clientcc.sendMsg(param);
+					 clientcc.close();
+					 String  subAddr=new String(rec);//发布地址；
+					 NetAddr subnet= info.aysAddr(subAddr);
+					 
+					//重新订阅
+					c.srvIP=subnet.ip;
+					c.port=subnet.port;
+					c.netProtocol=NetProtocol.valueOf(subnet.net);
+					c.update();
+					//
+					info.isCacs=false;
+					String msg="切回订阅地址："+subnet.ip+","+subnet.port;
+					System.out.println(msg);
+					LogFactory.getInstance().addInfo(msg);
+				}
+			}
+		}
+	}
+	
+	
+	/**
+	 * 
+	 * @Title: checkpub   
+	 * @Description: 监测发布服务节点      
+	 * void      
+	 * @throws
+	 */
+	private void checkpub()
+	{
+		//
+		mapClient.size();
+		Iterator<Entry<MQClient, MQCenterInfo>> item=mapClient.entrySet().iterator();
+		int size=0;
+		while(item.hasNext())
+		{
+			Entry<MQClient, MQCenterInfo> kv=item.next();
+			MQCenterInfo info = kv.getValue();
+			MQClient c=kv.getKey();
+			if(c.isClose())
+			{
+				item.remove();
+			}
+			if(!this.ischeckUpdate)
+			{
+				//如果不监测，则遍历即可，消除对象；
+				continue;
+			}
+			if(info.srcreqPort==0)
+			{
+				//没有使用正确的服务地址；
+				continue;
+			}
+			//
+			MsgClient client=new MsgClient();
+			client.srvIP=info.srcreqIP;
+			client.port=info.srcreqPort;
+			client.senRecTimeOut(3000);
+			byte[] data="req".getBytes();
+			System.out.println("pub1 发送 req");
+			byte[]rec=client.sendMsg(data);//请求级联的服务地址
+			client.close();
+			if(rec==null||rec.length==0)
+			{
+				//异常；
+				if(info.isCacs)
+				{
+					//已经启用了；
+					MsgClient clientc=new MsgClient();
+					clientc.srvIP=info.reqIP;
+					clientc.port=info.reqPort;
+					clientc.netProtocol=info.reqProtocol;
+					clientc.senRecTimeOut(3000);
+					System.out.println("pub2 发送 req");
+					rec=clientc.sendMsg(data);
+					clientc.close();
+					if(rec==null||rec.length==0)
+					{
+						//再次异常；获取其它级联
+						if(!info.lstAddrs.isEmpty())
+						{
+						    size=info.lstAddrs.size();
+							byte[] param="pub".getBytes();
+							for(int j=0;j<size;j++)
+							{
+								String caddr=info.lstAddrs.get(j);
+								MsgClient clientcc=new MsgClient();
+								NetAddr addr=info.aysAddr(caddr);
+								clientcc.srvIP=addr.ip;
+								clientcc.port=addr.port;
+								clientcc.netProtocol=NetProtocol.valueOf(addr.net);
+								clientcc.senRecTimeOut(3000);
+								rec=clientcc.sendMsg(param);//获取发布地址
+								clientcc.close();
+								if(rec!=null&&rec.length>0)
+								{
+									String  pubAddr=new String(rec);//发布地址；
+									 NetAddr pubnet= info.aysAddr(pubAddr);
+									//重新发布
+									c.srvIP=pubnet.ip;
+									c.port=pubnet.port;
+									c.netProtocol=NetProtocol.valueOf(pubnet.net);
+									c.update();
+									//请求地址更新
+									info.reqIP=addr.ip;
+									info.reqPort=addr.port;
+									info.reqProtocol=NetProtocol.valueOf(addr.net);
+									info.isCacs=true;//已经启动级联
+									String msg="切换发布地址："+pubnet.ip+","+pubnet.port;
+									LogFactory.getInstance().addInfo(msg);
+									System.out.println(msg);
+								}
+							}
+						}
+						
+					}
+					else
+					{
+						//没有异常，则获取服务地址
+						String  reqLstAddr=new String(rec);//发布地址；
+						 //
+						String[] reqlst=reqLstAddr.split(" ");
+						if(reqlst!=null)
+						{
+							info.lstAddrs.clear();
+							if(!reqLstAddr.equals("recviced"))
+							{
+							 for(int k=0;k<reqlst.length;k++)
+							  {
+							    info.lstAddrs.add(reqlst[k]);//该节点的级联服务地址；
+							  }
+							}
+						}
+						
+					}
+				}
+				else
+				{
+					//还没有启用级联的服务节点，直接查找级联节点
+					if(!info.lstAddrs.isEmpty())
+					{
+						size=info.lstAddrs.size();
+						byte[] param="pub".getBytes();
+						for(int j=0;j<size;j++)
+						{
+							String caddr=info.lstAddrs.get(j);
+							MsgClient clientcc=new MsgClient();
+							NetAddr addr=info.aysAddr(caddr);
+							clientcc.srvIP=addr.ip;
+							clientcc.port=addr.port;
+							clientcc.netProtocol=NetProtocol.valueOf(addr.net);
+							clientcc.senRecTimeOut(3000);
+							rec=clientcc.sendMsg(param);//获取发布地址
+							clientcc.close();
+							if(rec!=null&&rec.length>0)
+							{
+								 String  pubAddr=new String(rec);//发布地址；
+								 NetAddr pubnet= info.aysAddr(pubAddr);
+								//重新发布
+								c.srvIP=pubnet.ip;
+								c.port=pubnet.port;
+								c.netProtocol=NetProtocol.valueOf(pubnet.net);
+								c.update();
+								//请求地址更新
+								info.reqIP=addr.ip;
+								info.reqPort=addr.port;
+								info.reqProtocol=NetProtocol.valueOf(addr.net);
+								info.isCacs=true;//已经启动级联
+								String msg="切换发布地址："+pubnet.ip+","+pubnet.port;
+								LogFactory.getInstance().addInfo(msg);
+								System.out.println(msg);
+							}
+						}
+					}
+					else
+					{
+						String msg="没有级联地址";
+						LogFactory.getInstance().addInfo(msg);
+						System.out.println(msg);
+					}
+				}
+			}
+			else
+			{
+				//正常，获取最新的级联服务地址；
+				//没有异常，则获取服务地址
+				String  reqLstAddr=new String(rec);//发布地址；
+				 //
+				String[] reqlst=reqLstAddr.split(" ");
+				if(reqlst!=null)
+				{
+					info.lstAddrs.clear();
+					if(!reqLstAddr.equals("recviced"))
+					{
+					  for(int k=0;k<reqlst.length;k++)
+					  {
+					    info.lstAddrs.add(reqlst[k]);//该节点的级联服务地址；
+					  }
+					}
+				}
+				if(info.isCacs)
+				{
+					//重置节点地址
+					//向原服务地址请求发布地址
+					 byte[] param="pub".getBytes();
+					 MsgClient clientcc=new MsgClient();
+					 clientcc.srvIP=info.srcreqIP;
+					 clientcc.port=info.srcreqPort;
+					 clientcc.netProtocol=info.srcreqProtocol;
+					 clientcc.senRecTimeOut(3000);
+					 rec=clientcc.sendMsg(param);
+					 clientcc.close();
+					 String  pubAddr=new String(rec);//发布地址；
+					 NetAddr pubnet= info.aysAddr(pubAddr);
+					//重新发布
+					c.srvIP=pubnet.ip;
+					c.port=pubnet.port;
+					c.netProtocol=NetProtocol.valueOf(pubnet.net);
+					c.update();
+					resetPub(c);
+					//
+					info.isCacs=false;
+					String msg="切回发布地址："+pubnet.ip+","+pubnet.port;
+					LogFactory.getInstance().addInfo(msg);
+					System.out.println(msg);
+				}
+			
+			}
+		}
+		
+	}
+   
+	/**
+	 * 
+	 * @Title: resetPub   
+	 * @Description: 重新发送最新数据         
+	 * void      
+	 * @throws
+	 */
+	private void resetPub(MQClient pub)
+	{
+		if(DataCache.getInstance().isStore)
+		{
+			//启用了存储重发
+			LinkedList<byte[]> lst=(LinkedList<byte[]>) DataCache.getInstance().getCache();
+			while(!lst.isEmpty())
+			{
+				byte[] data=lst.remove();
+				pub.sendMsg(data);
+			}
+		}
+	}
+	
+	/**
+	 * 
+	 * @Title: start   
+	 * @Description: 开启线程监测回收对象的关闭情况       
+	 * void      
+	 * @throws
+	 */
+	private void start()
+	{
+		Thread thread = new Thread(new Runnable() {
+		   
+			public void run() {
+				
+				 try {
+				        
+				        WeakReference<?> k;
+				        while((k = (WeakReference<?>) q.remove()) != null) {
+				           Object obj= k.get();	
+				           if(obj!=null)
+				           {
+				        	   if(obj instanceof MsgClient)
+				        	   {
+				        		   MsgClient c=(MsgClient) obj;
+				        		   c.close();
+				        	   }
+				        	   else if(obj instanceof MsgServer)
+				        	   {
+				        		   MsgServer s=(MsgServer) obj;
+				        		   s.close();
+				        	   }
+				           }
+				           }
+				    } catch(InterruptedException e) {
+				        //结束循环
+				    }
+			}
+		});
+		thread.setDaemon(true);
+		thread.setName("monitorObj");
+		thread.start();
+	}
+}

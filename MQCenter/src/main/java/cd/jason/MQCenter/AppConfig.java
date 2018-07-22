@@ -42,6 +42,7 @@ public static String reqIp="127.0.0.1";//本节点服务IP
 public static String monitorAddr="127.0.0.1";//监视地址
 public static int monitorPort=50000;
 public static String appPath="";
+public static String masterServer="slave";
 
 /**
  * 

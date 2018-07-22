@@ -1,0 +1,354 @@
+/**    
+ * 文件名：MsgClient.java    
+ *    
+ * 版本信息：    
+ * 日期：2018年7月8日    
+ * Copyright 足下 Corporation 2018     
+ * 版权所有    
+ *    
+ */
+package cd.jason.msgmq;
+
+
+import org.zeromq.ZContext;
+import org.zeromq.ZMQ;
+
+
+/**    
+ *     
+ * 项目名称：msgmq    
+ * 类名称：MsgClient    
+ * 类描述： 通信客户端   
+ * 创建人：jinyu    
+ * 创建时间：2018年7月8日 下午2:25:51    
+ * 修改人：jinyu    
+ * 修改时间：2018年7月8日 下午2:25:51    
+ * 修改备注：    
+ * @version     
+ *     
+ */
+public class MsgClient {
+	private ZContext context=null;
+	public String srvIP="*";
+	public int port=0;
+	public NetProtocol netProtocol=NetProtocol.tcp;
+	public int bufSize=128;
+	public int MsgHWM=1000;
+	private String srvaddr="";
+	private int recTimeOut=3000;//发送接收端，服务端不可以
+	private ZMQ.Socket socket=null;
+	private volatile boolean isClose=false;
+	public MsgClient()
+	{
+		//创建一个I/O线程的上下文
+		 context = ZMQContext.createContext(); 
+	}
+	
+	   
+	/**   
+	 * @Title: address   
+	 * @Description: 构建地址
+	 * @return      
+	 * String      
+	 * @throws   
+	 */
+	private String address()
+	{
+		if(srvaddr.isEmpty())
+		{
+		   StringBuffer buf=new StringBuffer();
+		   buf.append(netProtocol.name());
+		   buf.append("://");
+		   buf.append(srvIP);
+		   buf.append(":");
+		   buf.append(port);
+		   srvaddr=buf.toString();
+		}
+		return srvaddr;
+	}
+	
+	/**
+	 * 
+	 * @Title: create   
+	 * @Description: 初始化  
+	 * @param type      
+	 * void      
+	 * @throws
+	 */
+ private void create(int type)
+ {
+	 if(socket==null)
+	 {
+	   socket = context.createSocket(type);
+	   socket.bind(address());
+	   socket.setHWM(MsgHWM);
+	   socket.setReceiveBufferSize(bufSize*1024);
+	   socket.setSendBufferSize(bufSize*1024);
+	    if(recTimeOut!=-1)
+	    {
+	    	socket.setReceiveTimeOut(recTimeOut);
+	    }
+	 }
+	 
+ }
+	/**
+	 * 连接服务端
+	 * @Title: sendMsg   
+	 * @Description: 发送数据
+	 * @param data
+	 * @return      
+	 * byte[]      
+	 * @throws
+	 */
+public byte[]  sendMsg(byte[]data)
+{
+	if(socket==null)
+	{
+	   socket = context.createSocket(ZMQ.REQ);   //创建一个request类型的socket，这里可以将其简单的理解为客户端，用于向response端发送数据
+	   socket.connect(address());   //与response端建立连接
+	   socket.setHWM(MsgHWM);
+	   socket.setReceiveBufferSize(bufSize);
+	   socket.setSendBufferSize(bufSize);
+	   if(recTimeOut!=-1)
+	    {
+	    	socket.setReceiveTimeOut(recTimeOut);
+	    }
+	}
+   socket.send(data);   //向reponse端发送数据
+   byte[] response = socket.recv();
+   return response;
+    //接收response发送回来的数据  正在request/response模型中，send之后必须要recv之后才能继续send，这可能是为了保证整个request/response的流程走完
+}
+
+/**
+ * 
+ * @Title: sendMsg   
+ * @Description: 发送字符串信息   
+ * @param data
+ * @return      
+ * byte[]      
+ * @throws
+ */
+public byte[]  sendMsg(String data)
+{
+	if(socket==null)
+	{
+	   socket = context.createSocket(ZMQ.REQ);   //创建一个request类型的socket，这里可以将其简单的理解为客户端，用于向response端发送数据
+	   socket.connect(address());   //与response端建立连接
+	   socket.setHWM(MsgHWM);
+	   socket.setReceiveBufferSize(bufSize);
+	   socket.setSendBufferSize(bufSize);
+	   if(recTimeOut!=-1)
+	    {
+	    	socket.setReceiveTimeOut(recTimeOut);
+	    }
+	}
+   socket.send(data);   //向reponse端发送数据
+   byte[] response = socket.recv();
+   return response;
+    //接收response发送回来的数据  正在request/response模型中，send之后必须要recv之后才能继续send，这可能是为了保证整个request/response的流程走完
+}
+
+/**
+ * 
+ * @Title: sendMoreMsg   
+ * @Description: 发送更多数据
+ * @param data
+ * @return      
+ * byte[]      
+ * @throws
+ */
+public boolean sendMoreMsg(String data)
+{
+	if(socket==null)
+	{
+	   socket = context.createSocket(ZMQ.REQ);   //创建一个request类型的socket，这里可以将其简单的理解为客户端，用于向response端发送数据
+	   socket.connect(address());   //与response端建立连接
+	   socket.setHWM(MsgHWM);
+	   socket.setReceiveBufferSize(bufSize);
+	   socket.setSendBufferSize(bufSize);
+	   if(recTimeOut!=-1)
+	    {
+	    	socket.setReceiveTimeOut(recTimeOut);
+	    }
+	}
+   return socket.sendMore(data);
+}
+/**
+ * 设置接收超时  
+ * @Title: sendMoreMsg   
+ * @Description: 继续发送数据
+ * @param data
+ * @return      
+ * byte[]      
+ * @throws
+ */
+public boolean  sendMoreMsg(byte[]data)
+{
+	if(socket==null)
+	{
+	   socket = context.createSocket(ZMQ.REQ);   //创建一个request类型的socket，这里可以将其简单的理解为客户端，用于向response端发送数据
+	   socket.connect(address());   //与response端建立连接
+	   socket.setHWM(MsgHWM);
+	   socket.setReceiveBufferSize(bufSize);
+	   socket.setSendBufferSize(bufSize);
+	   if(recTimeOut!=-1)
+	    {
+	    	socket.setReceiveTimeOut(recTimeOut);
+	    }
+	}
+  return socket.sendMore(data);
+}
+
+
+/**
+ * 绑定本机地址
+ * @Title: Publisher   
+ * @Description: 发布数据
+ * @param topic    主题 
+ * @param data    数据   
+ * void      
+ * @throws
+ */
+public boolean publish(String topic,byte[]data)
+{
+	if(data==null)
+	{
+		return false;
+	}
+	if(socket==null)
+	{
+		
+	    create(ZMQ.PUB);
+	}
+	byte[] topicByte=null;
+	if(topic==null||topic.isEmpty())
+	{
+		topicByte=new byte[0];
+	}
+	else
+	{
+		 topicByte=(topic+" ").getBytes();
+	}
+	byte[] buf=new byte[topicByte.length+data.length];
+	System.arraycopy(topicByte, 0, buf, 0, topicByte.length);
+	System.arraycopy(data, 0, buf, topicByte.length, data.length);
+	return socket.send(buf);
+}
+
+/**
+ * 连接代理
+ * @Title: publishM   
+ * @Description: 发布数据，使用代理
+ * @param topic
+ * @param data      
+ * void      
+ * @throws
+ */
+public boolean publishM(String topic,byte[]data)
+{
+	if(data==null)
+	{
+		return false;
+	}
+	if(socket==null)
+	{
+		   socket = context.createSocket(ZMQ.PUB);
+		   socket.setHWM(MsgHWM);
+		   socket.setReceiveBufferSize(bufSize*1024);
+		   socket.setSendBufferSize(bufSize*1024);
+		   socket.connect(address());
+		   System.out.println("发布数据地址："+address());
+		 
+	}
+	byte[] topicByte=null;
+	if(topic==null||topic.isEmpty())
+	{
+		topicByte=new byte[0];
+	}
+	else
+	{
+		 topicByte=(topic+" ").getBytes();
+	}
+	byte[] buf=new byte[topicByte.length+data.length];
+	System.arraycopy(topicByte, 0, buf, 0, topicByte.length);
+	System.arraycopy(data, 0, buf, topicByte.length, data.length);
+	return socket.send(buf);
+}
+
+/**
+ * 
+ * @Title: update   
+ * @Description: 重新初始化        
+ * void      
+ * @throws
+ */
+public void update()
+{
+	if(socket!=null)
+	{
+		socket.close();
+		socket=null;
+	}
+}
+/**
+ * 绑定本机地址
+ * @Title: push   
+ * @Description: push数据
+ * @param data      
+ * void      
+ * @throws
+ */
+public void push(byte[]data)
+{ 
+	if(socket==null)
+	{
+		 create(ZMQ.PUSH);
+	}
+	socket.send(data);
+}
+
+/**
+ * 设置接收超时  
+ * @Title: senRecTimeOut   
+ * @Description: 设置接收超时  
+ * @param value      
+ * void      
+ * @throws
+ */
+public void senRecTimeOut(int value)
+{
+	recTimeOut=value;
+	if(socket!=null)
+	   socket.setReceiveTimeOut(value);
+}
+/**
+ * 
+ * @Title: isClose   
+ * @Description: 是否已经关闭，调用了关闭方法   
+ * @return      
+ * boolean      
+ * @throws
+ */
+public boolean isClose()
+{
+	return this.isClose;
+}
+
+/**
+ * 关闭
+ * @Title: close   
+ * @Description:  关闭通信      
+ * void      
+ * @throws
+ */
+public void close()
+{
+	if(socket!=null)
+	{
+		socket.close();
+		socket=null;
+	}
+	this.isClose=true;
+}
+}

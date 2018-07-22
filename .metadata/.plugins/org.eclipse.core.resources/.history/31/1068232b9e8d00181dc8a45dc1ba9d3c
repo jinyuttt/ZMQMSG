@@ -1,0 +1,390 @@
+/**    
+ * 文件名：MQReq.java    
+ *    
+ * 版本信息：    
+ * 日期：2018年7月22日    
+ * Copyright 足下 Corporation 2018     
+ * 版权所有    
+ *    
+ */
+package cd.json.Srv;
+
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.LinkedBlockingQueue;
+
+import cd.jason.config.DataConfig;
+import cd.jason.msg.MQServer;
+import cd.jason.msg.MonitorObject;
+import cd.jason.msg.ProcessMode;
+import cd.jason.msg.ResetCheck;
+import cd.jason.msgmq.MsgServer;
+import cd.jason.msgmq.NetProtocol;
+
+/**    
+ *     
+ * 项目名称：msgmq    
+ * 类名称：MQReq    
+ * 类描述：    作为请求代理模式
+ * 创建人：jinyu    
+ * 创建时间：2018年7月22日 下午6:52:39    
+ * 修改人：jinyu    
+ * 修改时间：2018年7月22日 下午6:52:39    
+ * 修改备注：    
+ * @version     
+ *     
+ */
+public class MQRep {
+	/**
+	 * 绑定地址
+	 * 也是路由地址
+	 */
+	public String srvIP="*";
+	
+	/**
+	 * 绑定端口
+	 * 也是路由端口
+	 */
+	public int port=0;
+	
+	/**
+	 * 协议
+	 */
+	public NetProtocol netProtocol=NetProtocol.tcp;
+	public int bufSize=128;
+	public int MsgHWM=1000;
+	MsgServer socket=null;
+	byte[] rspData="reviceRsp".getBytes();
+	private LinkedBlockingQueue<byte[]> queue=null;
+	private boolean isStop=false;
+	//请求服务原地址
+	public String srcreqIP="127.0.0.1";
+	public int  srcreqPort=51000;
+	public NetProtocol srcreqProtocol=NetProtocol.tcp;
+	private List<String> lstTopic=new ArrayList<String>();
+	private ResetCheck repeat=null;
+	public volatile boolean isMQ=false;//是否作为发布订阅模型
+	
+	/**
+	 * 
+	 * @Title: setAddress   
+	 * @Description: 构造地址        
+	 * void      
+	 * @throws
+	 */
+	public void setAddress()
+	{
+		socket.bufSize=this.bufSize;
+		socket.MsgHWM=this.MsgHWM;
+		socket.netProtocol=this.netProtocol;
+		socket.port=this.port;
+		socket.srvIP=this.srvIP;
+	}
+	
+	/**
+	 * 
+	 * @Title: create   
+	 * @Description: 创建实例        
+	 * void      
+	 * @throws
+	 */
+	private void create()
+	{
+		if(socket==null)
+		{
+			socket=new MQServer();
+			MonitorObject.getInstance().addObject(socket);
+			setAddress();
+		}
+	}
+	/**
+	 * 
+	 * @Title: setRsp   
+	 * @Description: 设置回复数据
+	 * @param data      
+	 * void      
+	 * @throws
+	 */
+	public void setRsp(byte[]data)
+	{
+	
+		if(socket!=null)
+		   socket.setRsp(data);
+	}
+	
+	/**
+	 * 
+	 * @Title: start   
+	 * @Description: 阻塞启用  
+	 * @param mode  处理模式
+	 * @param topic 订阅模式时使用的主题名称
+	 * void      
+	 * @throws
+	 */
+	public void start(ProcessMode mode)
+	{
+		final ProcessMode curMode=mode;
+		Thread rec=new Thread(new Runnable() {
+			
+			public void run() {
+			isStop=false;
+			while(!isStop)
+			{
+				byte[]data=null;
+				switch(curMode)
+				{
+				case REQRSP:
+					 data=recvice();
+					 break;
+				case PULL:
+					data=pull();
+					break;
+				case SUBPUB:
+					data=subscriberData();
+					break;
+				case ROUTE:
+					data= recviceProxy();
+				default:
+					break;
+				}
+				if(data!=null)
+				{
+				   try {
+					queue.put(data);
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+				}
+				}
+			}
+				
+			}
+			
+		});
+		rec.setDaemon(true);
+		rec.setName("MQRec");
+		rec.start();
+	}
+	/**
+	 * 
+	 * @Title: getData   
+	 * @Description: 接收数据 
+	 * @return      
+	 * byte[]      
+	 * @throws
+	 */
+	public byte[] getData()
+	{
+		if(queue==null)
+		{
+			queue=new LinkedBlockingQueue<byte[]>(1000);
+		}
+		try {
+			return queue.take();
+		} catch (InterruptedException e) {
+			
+			e.printStackTrace();
+		}
+		return null;
+	}
+	
+	/**
+	 * 
+	 * @Title: recvice   
+	 * @Description: 接收数据  
+	 * @return      
+	 * byte[]      
+	 * @throws
+	 */
+    public byte[]  recvice()
+    {
+    	this.create();
+	    return socket.recvice();
+    }
+    /**
+	 * 
+	 * @Title: recvice   
+	 * @Description: 接收数据  
+	 * @return      
+	 * byte[]      
+	 * @throws
+	 */
+    public byte[]  recviceProxy()
+    {
+    	this.create();
+	    return socket.recviceProxy();
+    }
+
+/**
+ * 
+ * @Title: Subscriber   
+ * @Description: 订阅数据  
+ * @param topic
+ * @return      
+ * boolean   
+ * @throws
+ */
+public boolean subscriber(String topic)
+{
+	 if(lstTopic.contains(topic))
+	 {
+		 return true;
+	 }
+	 this.create();
+	 boolean r= socket.subscriber(topic);
+	 if(r)
+	 {
+		 lstTopic.add(topic);
+	 }
+	return r;
+}
+
+/**
+ * 
+ * @Title: subscriberData   
+ * @Description: 获取订阅的数据  
+ * @return   可能null   
+ * byte[]      
+ * @throws
+ */
+public byte[] subscriberData()
+{
+	if(socket!=null)
+	{
+	   byte[] data= socket.subscriberData();
+	   if(data==null)
+	   {
+		   return null;
+	   }
+	 String recData=new String(data);
+	 int index=recData.indexOf(" ");//找到第一个空格
+	 String topic=recData.substring(0, index).trim();
+	 if(DataConfig.isAddFlage)
+	 {
+		 if(repeat==null)
+		 {
+			 repeat=new ResetCheck();
+		 }
+		 //取出最近的数据
+		StringBuffer buf=new StringBuffer();
+		buf.append(recData);
+		buf.delete(0, index+1);
+		index=buf.indexOf(" ");
+		String flage=buf.substring(0,index);
+		if(repeat.checkReset(flage))
+		{
+			//判断是重复包，抛弃
+			return null;
+		}
+		else
+		{
+			//移除标识返回
+			int num=flage.getBytes().length;
+			byte[] topics=topic.getBytes();
+			ByteBuffer bufs=ByteBuffer.wrap(new byte[data.length-num]);
+			bufs.put(topics);
+			bufs.put(" ".getBytes());
+			bufs.put(data, num+topics.length+2, data.length-num-topic.getBytes().length-2);
+			data=bufs.array();
+		}
+	 }
+	 if(this.lstTopic.contains(topic))
+	 {
+		return data;
+	 }
+	  return data;
+	}
+	return null;
+	
+}
+
+/**
+ * 
+ * @Title: cancleSubscriber   
+ * @Description: 取消订阅   
+ * @param topic
+ * @return      
+ * byte[]      
+ * @throws
+ */
+public void cancleSubscriber(String topic)
+{
+	this.lstTopic.remove(topic);
+	if(topic==null||topic.isEmpty())
+	{
+		this.lstTopic.clear();
+	}
+	
+}
+/**
+ * 连接处理地址
+ * @Title: pull   
+ * @Description: 处理数据
+ * @return      
+ * byte[]      
+ * @throws
+ */
+public byte[] pull()
+{
+	this.create();
+	return socket.pull();
+}
+
+/**
+ * 
+ * @Title: isClose   
+ * @Description:  关闭状态
+ * @return      
+ * boolean      
+ * @throws
+ */
+public boolean isClose()
+{
+	if(socket!=null)
+	return socket.isClose();
+	return false;
+}
+/**
+ * 
+ * @Title: close   
+ * @Description: 关闭      
+ * void      
+ * @throws
+ */
+public void close()
+{
+	if(socket!=null)
+	{
+		socket.close();
+	}
+}
+
+/**
+ * 
+ * @Title: update   
+ * @Description: 更新数据提供地址         
+ * void      
+ * @throws
+ */
+public void update() {
+	System.out.println("update");
+	 if(socket!=null)
+	     socket.reset();
+	try {
+		Thread.sleep(3000);
+	} catch (InterruptedException e) {
+		e.printStackTrace();
+	}
+	socket=null;
+	if(!lstTopic.isEmpty())
+	{
+		this.create();
+		//如果使用过订阅数据则重新订阅
+		for(String key:lstTopic)
+		{
+			socket.subscriber(key);
+		}
+	}
+	System.out.println("重新订阅");
+}
+}

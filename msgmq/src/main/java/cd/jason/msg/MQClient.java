@@ -16,7 +16,7 @@ import cd.jason.msgmq.NetProtocol;
  *     
  * 项目名称：msgmq    
  * 类名称：MsgClient    
- * 类描述： 通信客户端   
+ * 类描述： 通信客户端中间层，外部不直接使用   
  * 创建人：jinyu    
  * 创建时间：2018年7月8日 下午2:25:51    
  * 修改人：jinyu    
@@ -27,11 +27,11 @@ import cd.jason.msgmq.NetProtocol;
  */
 public class MQClient {
 
-	//发布地址
+	//发布基础地址
 	public String srvIP="*";
 	public int port=0;
 	public NetProtocol netProtocol=NetProtocol.tcp;
-	//请求服务原地址
+	//发布订阅使用代理的请求服务原地址
 	public String srcreqIP="127.0.0.1";
 	public int  srcreqPort=51000;
 	public NetProtocol srcreqProtocol=NetProtocol.tcp;
@@ -39,6 +39,8 @@ public class MQClient {
 	public int bufSize=128;
 	public int MsgHWM=1000;
 	MsgClient socket=null;
+	
+	public volatile boolean isMQ=false;//是否作为发布订阅模型
 	public MQClient()
 	{
 		MonitorObject.getInstance().add(this);
@@ -76,9 +78,21 @@ public class MQClient {
 			MonitorObject.getInstance().addObject(socket);
 		}
 	}
-
 	/**
-	 * 连接服务端
+	 * 设置接收超时  
+	 * @Title: senRecTimeOut   
+	 * @Description: 设置接收超时  
+	 * @param value      
+	 * void      
+	 * @throws
+	 */
+	public void senRecTimeOut(int value)
+	{
+		if(socket!=null)
+		    socket.senRecTimeOut(value);
+	}
+	/**
+	 *  连接服务端
 	 * @Title: sendMsg   
 	 * @Description: 发送数据
 	 * @param data

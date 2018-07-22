@@ -1,0 +1,88 @@
+/**    
+ * 文件名：FactoryGroup.java    
+ *    
+ * 版本信息：    
+ * 日期：2018年7月22日    
+ * Copyright 足下 Corporation 2018     
+ * 版权所有    
+ *    
+ */
+package cd.jason.Srv;
+
+import cd.jason.msg.MQClient;
+import cd.jason.msg.MQServer;
+import cd.jason.msgmq.NetProtocol;
+
+/**    
+ * 
+ * 项目名称：msgmq    
+ * 类名称：FactoryGroup    
+ * 类描述： 通信组  
+ * 创建人：jinyu    
+ * 创建时间：2018年7月22日 下午9:51:46    
+ * 修改人：jinyu    
+ * 修改时间：2018年7月22日 下午9:51:46    
+ * 修改备注：    
+ * @version     
+ *     
+ */
+public class ReqGroup {
+	    private String conAddress="";
+        private NetProtocol conNet;
+        private int  conPort;
+        public NetProtocol netProtocol=NetProtocol.tcp;
+    	public int bufSize=128;
+    	public int MsgHWM=1000;
+//       private String createUrl(String net,String ip,int port)
+//       {
+//	    StringBuffer buf=new StringBuffer();
+//	    buf.append(net);
+//		buf.append("://");
+//		buf.append(ip);
+//	    buf.append(":");
+//		buf.append(port);
+//		return buf.toString();
+//       }
+       public void setName(String name)
+       {
+       }
+ public void check()
+ {
+	 
+ }
+ private  MQClient newClient()  
+ {  
+	   MQClient conn = new MQClient();
+	   conn.srvIP=this.conAddress;
+	   conn.port=this.conPort;
+	   conn.netProtocol=conNet;
+	   return conn;
+ } 
+
+ public MQReq createMQReq()
+ {
+	 MQReq rep=new MQReq();
+	 rep.bufSize=this.bufSize;
+	 rep.MsgHWM=this.MsgHWM;
+	 rep.srvIP=this.conAddress;
+	 rep.port=this.conPort;
+	 rep.netProtocol=this.netProtocol;//
+	 //复制完成后采用设置底层的方式；
+	 rep.setGroupMQ(newClient());
+	 return rep;
+ }
+
+ 
+ public ObjectReq createObjectReq()
+ {
+	 ObjectReq req=new ObjectReq();
+	 req.bufSize=this.bufSize;
+	 req.MsgHWM=this.MsgHWM;
+	 req.srvIP=this.conAddress;
+	 req.port=this.conPort;
+	 req.netProtocol=this.netProtocol;//
+	 //复制完成后采用设置底层的方式；
+	 req.setGroupMQ(createMQReq());
+	 return req;
+ }
+}

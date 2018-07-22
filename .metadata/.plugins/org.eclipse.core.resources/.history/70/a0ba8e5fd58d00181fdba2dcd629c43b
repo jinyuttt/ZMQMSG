@@ -1,0 +1,225 @@
+/**    
+ * 文件名：FactoryGroup.java    
+ *    
+ * 版本信息：    
+ * 日期：2018年7月23日    
+ * Copyright 足下 Corporation 2018     
+ * 版权所有    
+ *    
+ */
+package cd.jason.Srv;
+
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map.Entry;
+import java.util.WeakHashMap;
+
+import cd.jason.msg.NetAddr;
+import cd.jason.thread.ThreadPool;
+
+/**    
+ *     
+ * 项目名称：msgmq    
+ * 类名称：FactoryGroup    
+ * 类描述：    创建请求回复组
+ * 创建人：jinyu    
+ * 创建时间：2018年7月23日 上午12:50:09    
+ * 修改人：jinyu    
+ * 修改时间：2018年7月23日 上午12:50:09    
+ * 修改备注：    
+ * @version     
+ *     
+ */
+public class FactoryGroup {
+	public static int checkTime=20000;//ms
+	private static WeakHashMap<RepGroup,String> mapRepObj=new WeakHashMap<RepGroup,String>();
+	private  static WeakHashMap<ReqGroup,String> mapReqObj=new WeakHashMap<ReqGroup,String>();
+	private static void start()
+	{
+		Runnable command = new Runnable()
+				{
+
+					public void run() {
+						while(true)
+						{
+							try {
+								Thread.sleep(checkTime);
+							} catch (InterruptedException e) {
+								
+								e.printStackTrace();
+							}
+							//遍历服务端
+							try
+							{
+							Iterator<Entry<RepGroup, String>> rep = mapRepObj.entrySet().iterator();
+						    while(rep.hasNext())
+						     {
+						    	Entry<RepGroup, String> item = rep.next();
+						    	RepGroup grp = item.getKey();
+						    	grp.checkMaster();
+						    	grp.check();
+						     }
+							}
+							catch(Exception ex)
+							{
+								
+							}
+						}
+					}
+			         
+				};
+		ThreadPool.getInstance().executeThread(command);
+	}
+	/**
+	 * 
+	 * @Title: aysAddr   
+	 * @Description: 处理地址   
+	 * @param addr
+	 * @return      
+	 * NetAddr      
+	 * @throws
+	 */
+	private static NetAddr aysAddr(String addr)
+	{
+		NetAddr netaddr=new NetAddr();
+		int index=addr.indexOf(":");
+		netaddr.net=addr.substring(0, index);
+		String tmp=addr.substring(index+3);
+		String[] caddr=tmp.split(":");
+		netaddr.ip=caddr[0];
+		netaddr.port=Integer.valueOf(caddr[1]);
+		return netaddr;
+		
+	}
+	
+	/**
+	 * 
+	 * @Title: master   
+	 * @Description: 处理master 
+	 * @param lstAddress
+	 * @return      
+	 * NetAddr      
+	 * @throws
+	 */
+	private static NetAddr master(List<NetAddr> lstAddress)
+	{
+		NetAddr cur=null;
+		for(NetAddr addr:lstAddress)
+		{
+			if(cur==null)
+			{
+				cur=addr;
+			}
+			else
+			{
+				if(cur.ip.compareTo(addr.ip)<0)
+				{
+					cur=addr;
+				}
+				else if(cur.ip.compareTo(addr.ip)==0&&cur.port<addr.port)
+				{
+					cur=addr;
+				}
+			}
+		}
+		return cur;
+	}
+	
+	/**
+	 * 
+	 * @Title: createReqGroupStr   
+	 * @Description: 创建请求组  
+	 * @param lstAddr
+	 * @return      
+	 * ReqGroup      
+	 * @throws
+	 */
+public static ReqGroup createReqGroupStr(List<String> lstAddr)
+{
+	List<NetAddr> lstAddress=new ArrayList<NetAddr>();
+	for(String addr:lstAddr)
+	{
+		lstAddress.add(aysAddr(addr));
+	}
+	return createReqGroup(lstAddress);
+}
+
+/**
+ * 
+ * @Title: createReqGroup   
+ * @Description: 创建请求组
+ * @param lstAddress
+ * @return      
+ * ReqGroup      
+ * @throws
+ */
+public static ReqGroup createReqGroup(List<NetAddr> lstAddress)
+{
+	ReqGroup  grq=new ReqGroup();
+	grq.setAddress(lstAddress);
+	boolean r=grq.checkMaster();
+	if(r)
+	{
+		grq.setInitMasterCon();
+	}
+	else
+	{
+		//获取master
+		NetAddr addr= master(lstAddress);
+		grq.reSetMaster(addr);
+		grq.setInitMasterCon();
+	}
+	mapReqObj.put(grq, String.valueOf(System.currentTimeMillis()));
+	return grq;
+}
+
+/**
+ * 
+ * @Title: createRepGroupStr   
+ * @Description: 创建回复组   
+ * @param lstAddr
+ * @return      
+ * RepGroup      
+ * @throws
+ */
+public static RepGroup createRepGroupStr(List<String> lstAddr)
+{
+	
+	List<NetAddr> lstAddress=new ArrayList<NetAddr>();
+	for(String addr:lstAddr)
+	{
+		lstAddress.add(aysAddr(addr));
+	}
+	return createRepGroup(lstAddress);
+}
+
+/**
+ * 
+ * @Title: createRepGroup   
+ * @Description: 创建回复组 
+ * @param lstAddr
+ * @return      
+ * RepGroup      
+ * @throws
+ */
+public static RepGroup createRepGroup(List<NetAddr> lstAddr)
+{
+	RepGroup  grp=new RepGroup();
+	grp.setAddress(lstAddr);
+	boolean r=grp.checkMaster();
+	if(r)
+	{
+		grp.setInitMasterCon();
+	}
+	else
+	{
+		//获取master
+		NetAddr addr= master(lstAddr);
+		grp.reSetMaster(addr);
+		grp.setInitMasterCon();
+	}
+	mapRepObj.put(grp, String.valueOf(System.currentTimeMillis()));
+	return grp;
+}
+}

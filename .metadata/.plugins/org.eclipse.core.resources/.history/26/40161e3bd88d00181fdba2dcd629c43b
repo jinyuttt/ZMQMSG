@@ -1,0 +1,145 @@
+/**    
+ * 文件名：ServerProxy.java    
+ *    
+ * 版本信息：    
+ * 日期：2018年7月22日    
+ * Copyright 足下 Corporation 2018     
+ * 版权所有    
+ *    
+ */
+package cd.jason.MQCenter;
+
+import cd.jason.msgmq.MsgProxyBridge;
+import cd.jason.msgmq.MsgServer;
+
+/**    
+ *     
+ * 项目名称：MQCenter    
+ * 类名称：ServerProxy    
+ * 类描述：    
+ * 创建人：jinyu    
+ * 创建时间：2018年7月22日 下午5:36:57    
+ * 修改人：jinyu    
+ * 修改时间：2018年7月22日 下午5:36:57    
+ * 修改备注：    
+ * @version     
+ *     
+ */
+public class ServerProxy {
+ private 	MsgProxyBridge server=null;
+ private   MsgServer msgCheck=null;
+ private   MsgServer msgCheckEnd=null;
+public void start()
+{
+	server=new MsgProxyBridge();
+	Thread start=new Thread(new Runnable() {
+		public void run() {
+	    	server.srvIP="*";
+	    	server.backIP="*";
+	    	server.port=AppConfig.frontPort;
+	    	server.backPort=AppConfig.endPort;
+	    	//
+	    	System.out.println("启动服务代理");
+	    	server.routerpoll();
+	    	
+		}
+		
+	});
+	start.setDaemon(true);
+	start.setName("serverProxyCenter");
+    start.start();
+    checkServer();
+}
+
+/**
+ * 启动验证监视
+ * @Title: checkServer   
+ * @Description: TODO(这里用一句话描述这个方法的作用)         
+ * void      
+ * @throws
+ */
+private void checkServer()
+{
+	Thread front=new Thread(new Runnable() {
+		public void run() {
+			try
+			{
+	    	MsgServer msgCheck=new MsgServer();
+	    	msgCheck.srvIP="*";
+	    	msgCheck.port=AppConfig.frontPort+1;
+	    	while(true)
+	    	{
+	    	byte[] rec=msgCheck.recvice();
+	    	if(rec!=null&&rec.length>0)
+	    	{
+	    		String data=AppConfig.masterServer;
+	    		if(data==null||data.isEmpty())
+	    		{
+	    			data="slave";
+	    		}
+	    		msgCheck.setRsp(data.getBytes());
+	    	}
+	    	}
+		}
+		catch(Exception ex)
+		{
+			ex.printStackTrace();
+		}
+		}
+	});
+	front.setDaemon(true);
+	front.setName("frontCheck");
+	if(!front.isAlive())
+	{
+	  front.start();
+	}
+	Thread back=new Thread(new Runnable() {
+		public void run() {
+			try
+			{
+	    	MsgServer msgCheck=new MsgServer();
+	    	msgCheck.srvIP="*";
+	    	msgCheck.port=AppConfig.endPort+1;
+	    	while(true)
+	    	{
+	    	 byte[] rec=msgCheck.recvice();
+	    	 if(rec!=null&&rec.length>0)
+	    	 {
+	    		String data=AppConfig.masterServer;
+	    		if(data==null||data.isEmpty())
+	    		{
+	    			data="slave";
+	    		}
+	    		msgCheck.setRsp(data.getBytes());
+	    	 }
+	    	 }
+		 }
+		
+		catch(Exception ex)
+		{
+			ex.printStackTrace();
+		}
+		}
+	});
+	back.setDaemon(true);
+	back.setName("backCheck");
+	if(!back.isAlive())
+	{
+		back.start();
+	}
+}
+/**
+ * 
+ * @Title: close   
+ * @Description: 关闭服务         
+ * void      
+ * @throws
+ */
+public  void close()
+{
+	if(server!=null)
+	{
+	   server.close();
+	}
+}
+}
